@@ -47,7 +47,11 @@
    - Escolher o que já está indo na direção da requisição e mais próximo do andar.  
 3. **Elevador ocioso disponível:**  
    - Priorizar o mais próximo do andar do pedido.  
-4. **Desempate:**  
+4. **Pedidos para o mesmo andar:**  
+   - Permitir que múltiplos elevadores se dirijam ao mesmo andar se necessário.  
+   - Pedido é removido da fila somente quando atendido.  
+   - Elevadores consultam a fila antes de abrir a porta para evitar abrir desnecessariamente.  
+5. **Desempate:**  
    - Preferir direção igual à requisição → distância mínima → ordem fixa (E1>E2>E3).  
 
 ### Comunicação
@@ -65,11 +69,12 @@
 6. **Porta:** abre, mantém aberta enquanto houver presença ou comando → fecha automaticamente.  
 7. **Atualização de status:** elevador reporta andar atual e estado ao escalonador.  
 8. **Loop do escalonador:** verifica todas as requisições → envia novas ordens → repete.  
-9. **Coordenação multi-elevador:** dispatcher decide qual elevador atende qual chamada, garantindo eficiência e evitando conflitos.  
+9. **Coordenação multi-elevador:** dispatcher decide qual elevador atende qual chamada, permitindo múltiplos atendimentos no mesmo andar quando necessário.  
 
 ---
 
 ## 5. Observações importantes
 - **Elevadores não tomam decisões de rota**; toda lógica de escalonamento é externa.  
 - **Sensores e temporizadores garantem segurança física**, independentemente das ordens.  
-- **Sistema contínuo:** nunca para até desligamento manual, podendo atender requisições em tempo real.  
+- **Pedidos duplicados:** sistema permite que mais de um elevador vá para o mesmo andar, mas evita abrir portas desnecessariamente.  
+- **Sistema contínuo:** nunca para até desligamento manual, podendo atender requisições em tempo real.
