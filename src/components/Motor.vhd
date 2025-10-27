@@ -11,7 +11,7 @@ entity Motor is
         -- 00 = parado, 01 = subir, 10 = descer
 
         -- Entrada porta
-        porta : in std_logic
+        porta : in std_logic;
         -- 1 = aberta, 0 = fechada
 
         -- Saída de sensor (movimento atual)
