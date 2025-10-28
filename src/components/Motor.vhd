@@ -20,8 +20,6 @@ entity Motor is
         em_movimento : out std_logic;  -- 1 = movendo, 0 = parado
         direcao      : out std_logic_vector(1 downto 0);  -- mesma codificação do comando
         freio        : out std_logic -- adicionado para comando de parada
-
-        ocupado : in std_logic; -- ele recebe papo de um sinal para caso não tiver nenhuma requisição presente no vetor do elevador
     );
 end entity;
 
@@ -52,7 +50,7 @@ begin
 
         -- REGRA DE SEGURANÇA: Se a porta abrir, para imediatamente
         -- Considera parar se o motor ainda estivesse em movimento
-        if porta = '1' or ocupado = '0' then -- atualizei aqui pra considerar o sinal de ocupado
+        if porta = '1' then
             if (estado_atual = SUBINDO) or (estado_atual = DESCENDO) then
                 proximo_estado <= FREANDO;
             else
@@ -64,8 +62,8 @@ begin
             end if;
         
         -- LÓGICA DE OPERAÇÃO (Porta fechada)
-        else -- porta = '0' e o ocupado é igual a 1
-            case estado_atual is    
+        else -- porta = '0'
+            case estado_atual is
                 when PARADO =>
                     if comando = "01" then      -- Comando para SUBIR
                         proximo_estado <= SUBINDO;
@@ -122,7 +120,7 @@ begin
         end if;
     end process;
 
-
+    
     -- PROCESSO 3: Lógica de Saída 
     -- Define as saídas (em_movimento, direcao) com base só no estado atual.
     
