@@ -26,7 +26,7 @@ begin
                 if (load = '1') then
                     q_reg <= d;
                 else
-                    q_reg <= q_reg - 1;
+                    q_reg <= std_logic_vector(unsigned(q_reg) - 1);
                 end if;
             end if;
         end if;
