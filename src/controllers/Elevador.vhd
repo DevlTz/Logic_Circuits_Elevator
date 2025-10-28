@@ -46,7 +46,8 @@ architecture Behavioral of Elevador is
             comando    : in  std_logic_vector(1 downto 0);  
             porta      : in std_logic;
             em_movimento : out std_logic;  -- 1 = movendo, 0 = parado
-            direcao      : out std_logic_vector(1 downto 0)  -- mesma codificação do comando
+            direcao      : out std_logic_vector(1 downto 0); -- mesma codificação do comando
+            freio        : out std_logic
         );
     end component;
 
@@ -56,7 +57,7 @@ begin
             clk => clk,
             rst => rst,
             abre => comando_porta, 
-            motor_mov => comando_motor,
+            motor_mov => sensor_movimento, -- Alterado com o que era :  motor_mov => comando_motor | A explicação pra isso é simples > A porta só precisa saber se o motor tá movendo ou nem
             porta_aberta => estado_porta 
         );
 
@@ -66,8 +67,9 @@ begin
             rst => rst,
             comando => comando_motor,
             porta => estado_porta,
-            em_movimento => 1 bit,
-            direcao => estado_motor
+            em_movimento => sensor_movimento, -- Alterando o que era : em_movimento => 1 bit | A gente tem que fazer a ligação pra o sensor_movimento que em si é uma entrada do Elveador
+            direcao => estado_motor,
+            freio => open -- isso vai dizer que não vai tá nada ligado enquanto nada rolar. '-'
         );
 
     process(clk, rst)

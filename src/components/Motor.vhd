@@ -17,7 +17,7 @@ entity Motor is
         -- Saída de sensor (movimento atual)
         em_movimento : out std_logic;  -- 1 = movendo, 0 = parado
         direcao      : out std_logic_vector(1 downto 0)  -- mesma codificação do comando
-        brake        : out std_logic -- adicionado para comando de parada
+        freio        : out std_logic -- adicionado para comando de parada
     );
 end entity;
 
@@ -135,8 +135,8 @@ begin
                 
             when FREANDO =>
                 em_movimento <= '0'; -- O motor não está "em movimento"
-                direcao <= "00";     -- O PDF tava dizendo que tinha uma saída 'brake', talvez essa encaixe como um modelo? (Tem que ver...)
-                brake <= '1'; -- Freio ativo 
+                direcao <= "00";     
+                freio <= '1'; -- Freio ativo 
     end process;
 
 end architecture;
