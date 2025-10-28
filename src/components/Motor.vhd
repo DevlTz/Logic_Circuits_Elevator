@@ -52,7 +52,7 @@ begin
 
         -- REGRA DE SEGURANÇA: Se a porta abrir, para imediatamente
         -- Considera parar se o motor ainda estivesse em movimento
-        if porta = '1' then
+        if porta = '1' or ocupado = '0' then -- atualizei aqui pra considerar o sinal de ocupado
             if (estado_atual = SUBINDO) or (estado_atual = DESCENDO) then
                 proximo_estado <= FREANDO;
             else
@@ -64,9 +64,8 @@ begin
             end if;
         
         -- LÓGICA DE OPERAÇÃO (Porta fechada)
-        else -- porta = '0'
+        else -- porta = '0' e o ocupado é igual a 1
             case estado_atual is    
-                
                 when PARADO =>
                     if comando = "01" then      -- Comando para SUBIR
                         proximo_estado <= SUBINDO;
@@ -93,7 +92,6 @@ begin
                     -- Permanece em FREANDO até o contador terminar
                     if contador_freio = TEMPO_FREIO then
                         proximo_estado <= PARADO;
-                        
                     end if;
 
             end case;
