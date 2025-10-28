@@ -1,0 +1,84 @@
+graph TD
+    subgraph Sistema_Elevadores ["Top-Level (Niveis)"]
+        
+        %% Módulo Escalonador (Nível 2)
+        subgraph Escalonador [Escalonador / Supervisor]
+            direction TB
+            E_FSM[FSM Escalonamento]
+        end
+
+        %% Módulo Controlador Local 0
+        subgraph Elevador_0 ["Controller Local 0 (Elevador 0)"]
+            direction TB
+            CL0_FSM[FSM Controle Motor/Porta 0]
+            CL0_Timers[Timers/Contadores 0]
+            CL0_Reg["Registradores 0 (Andar Atual)"]
+        end
+
+        %% Módulo Controlador Local 1
+        subgraph Elevador_1 ["Controller Local 1 (Elevador 1)"]
+            direction TB
+            CL1_FSM[FSM Controle Motor/Porta 1]
+            CL1_Timers[Timers/Contadores 1]
+            CL1_Reg["Registradores 1 (Andar Atual)"]
+        end
+
+        %% Módulo Controlador Local 2
+        subgraph Elevador_2 ["Controller Local 2 (Elevador 2)"]
+            direction TB
+            CL2_FSM[FSM Controle Motor/Porta 2]
+            CL2_Timers[Timers/Contadores 2]
+            CL2_Reg["Registradores 2 (Andar Atual)"]
+        end
+
+        %% Conexões Globais (Inputs)
+        Inputs_Globais["Sinais Globais (clk, reset)"]
+        Inputs_Globais --> Escalonador
+        Inputs_Globais --> Elevador_0
+        Inputs_Globais --> Elevador_1
+        Inputs_Globais --> Elevador_2
+
+        %% Entradas Externas -> Escalonador
+        Inputs_Externos["Chamadas Externas (call_up, call_down)"]
+        Inputs_Externos --> Escalonador
+
+        %% Entradas Internas e Sensores -> Controladores Locais
+        Inputs_Internos_0["Chamadas Internas 0 (dest_request[0])"]
+        Inputs_Sensores_0["Sensores 0 (floor_sensor[0], door_open_closed[0])"]
+        Inputs_Internos_0 --> Elevador_0
+        Inputs_Sensores_0 --> Elevador_0
+
+        Inputs_Internos_1["Chamadas Internas 1 (dest_request[1])"]
+        Inputs_Sensores_1["Sensores 1 (floor_sensor[1], door_open_closed[1])"]
+        Inputs_Internos_1 --> Elevador_1
+        Inputs_Sensores_1 --> Elevador_1
+
+        Inputs_Internos_2["Chamadas Internas 2 (dest_request[2])"]
+        Inputs_Sensores_2["Sensores 2 (floor_sensor[2], door_open_closed[2])"]
+        Inputs_Internos_2 --> Elevador_2
+        Inputs_Sensores_2 --> Elevador_2
+
+        %% Comunicação Escalonador <-> Controladores
+        Escalonador -- "Pedido Atendimento" --> Elevador_0
+        Elevador_0 -- "Status (Andar, Ocupado)" --> Escalonador
+
+        Escalonador -- "Pedido Atendimento" --> Elevador_1
+        Elevador_1 -- "Status (Andar, Ocupado)" --> Escalonador
+
+        Escalonador -- "Pedido Atendimento" --> Elevador_2
+        Elevador_2 -- "Status (Andar, Ocupado)" --> Escalonador
+
+        %% Saídas Finais (Comandos)
+        Elevador_0 --> Saidas_Motor_0["Comandos Motor 0 (move_up, move_down, brake)"]
+        Elevador_0 --> Saidas_Porta_0["Comandos Porta 0 (door_open, door_close)"]
+        Elevador_0 --> Saidas_Display_0["Display Andar 0 (seg7[0])"]
+
+        Elevador_1 --> Saidas_Motor_1[Comandos Motor 1]
+        Elevador_1 --> Saidas_Porta_1[Comandos Porta 1]
+        Elevador_1 --> Saidas_Display_1[Display Andar 1]
+
+        Elevador_2 --> Saidas_Motor_2[Comandos Motor 2]
+        Elevador_2 --> Saidas_Porta_2[Comandos Porta 2]
+        Elevador_2 --> Saidas_Display_2[Display Andar 2]
+
+    end
