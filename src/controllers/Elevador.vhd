@@ -72,6 +72,27 @@ begin
             freio => open -- isso vai dizer que não vai tá nada ligado enquanto nada rolar. '-'
         );
 
+    function calcula_em_movimento(
+        requisicoes_externas : std_logic_vector(31 downto 0);
+        requisicoes_internas : std_logic_vector(31 downto 0)
+    ) return std_logic is
+        variable requisicoes_totais : std_logic_vector(31 downto 0);
+        variable todas_reqs : std_logic := '0';
+    begin
+        -- soma entre as requisições
+        requisicoes_totais := requisicoes_externas or requisicoes_internas;
+
+        -- NOR (lembre-se que o NOR quando todas as portas são 0, retorna 1)
+        for i in requisicoes_totais'range loop
+            todas_reqs := todas_reqs or requisicoes_totais(i);
+        end loop;
+
+        -- Logo... iremos retornar da seguinte forma:
+        -- '1' = parado, '0' = tem requisição = mover
+        return not todas_reqs;
+    end function;
+
+
     process(clk, rst)
     begin
         if rst = '1' then 
@@ -84,16 +105,21 @@ begin
             andar_atual <= sensor_andar_atual;
             estado_porta <= sensor_porta_aberta;
             estado_motor <= sensor_movimento;
-
-            if proximo_andar < andar_atual then -- descer
-                comando_motor <= '10';
-                comando_porta <= '0';
-            elsif proximo_andar > andar_atual then -- subir
-                comando_motor <= '01';
-                comando_porta <= '0';
-            else -- chegou 
+            
+            if calcula_em_movimento(requisicoes_escalonador, requisicoes_internas) = '1' then
+                if proximo_andar < andar_atual then -- descer
+                    comando_motor <= '10';
+                    comando_porta <= '0';
+                elsif proximo_andar > andar_atual then -- subir
+                    comando_motor <= '01';
+                    comando_porta <= '0';
+                else -- chegou 
+                    comando_motor <= '00';
+                    comando_porta <= '1';
+                end if;
+            else
                 comando_motor <= '00';
-                comando_porta <= '1';
+                comando_porta <= '0';
             end if;
         end if;
     end process;
