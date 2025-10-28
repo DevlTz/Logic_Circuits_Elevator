@@ -16,7 +16,7 @@ entity Motor is
 
         -- Saída de sensor (movimento atual)
         em_movimento : out std_logic;  -- 1 = movendo, 0 = parado
-        direcao      : out std_logic_vector(1 downto 0)  -- mesma codificação do comando
+        direcao      : out std_logic_vector(1 downto 0);  -- mesma codificação do comando
         freio        : out std_logic -- adicionado para comando de parada
     );
 end entity;
@@ -56,7 +56,7 @@ begin
         
         -- LÓGICA DE OPERAÇÃO (Porta fechada)
         else -- porta = '0'
-            case estado_atual is
+            case estado_atual is    
                 
                 when PARADO =>
                     if comando = "01" then      -- Comando para SUBIR
@@ -124,19 +124,23 @@ begin
             when PARADO =>
                 em_movimento <= '0';
                 direcao <= "00";
+                freio <= '0';
                 
             when SUBINDO =>
                 em_movimento <= '1';
                 direcao <= "01";
+                freio <= '0';
                 
             when DESCENDO =>
                 em_movimento <= '1';
                 direcao <= "10";
+                freio <= '0';
                 
             when FREANDO =>
                 em_movimento <= '0'; -- O motor não está "em movimento"
                 direcao <= "00";     
                 freio <= '1'; -- Freio ativo 
+        end case;   
     end process;
 
-end architecture;
+end architecture Behavioral;
