@@ -1,6 +1,8 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 
+-- Motor está sem realimentação de sinal.
+
 entity Motor is
     port (
         clk        : in  std_logic;
@@ -18,6 +20,8 @@ entity Motor is
         em_movimento : out std_logic;  -- 1 = movendo, 0 = parado
         direcao      : out std_logic_vector(1 downto 0);  -- mesma codificação do comando
         freio        : out std_logic -- adicionado para comando de parada
+
+        ocupado : in std_logic; -- ele recebe papo de um sinal para caso não tiver nenhuma requisição presente no vetor do elevador
     );
 end entity;
 
@@ -47,17 +51,21 @@ begin
         proximo_estado <= estado_atual; 
 
         -- REGRA DE SEGURANÇA: Se a porta abrir, para imediatamente
-        if porta = '1' then
+        -- Considera parar se o motor ainda estivesse em movimento
+        if porta = '1' or ocupado = '0' then -- atualizei aqui pra considerar o sinal de ocupado
             if (estado_atual = SUBINDO) or (estado_atual = DESCENDO) then
                 proximo_estado <= FREANDO;
             else
-                proximo_estado <= PARADO;
+                if (em_movimento = '1') then
+                    proximo_estado <= FREANDO;
+                else
+                    proximo_estado <= PARADO;
+                end if;
             end if;
         
         -- LÓGICA DE OPERAÇÃO (Porta fechada)
-        else -- porta = '0'
+        else -- porta = '0' e o ocupado é igual a 1
             case estado_atual is    
-                
                 when PARADO =>
                     if comando = "01" then      -- Comando para SUBIR
                         proximo_estado <= SUBINDO;
@@ -84,7 +92,6 @@ begin
                     -- Permanece em FREANDO até o contador terminar
                     if contador_freio = TEMPO_FREIO then
                         proximo_estado <= PARADO;
-                        
                     end if;
 
             end case;
@@ -104,6 +111,7 @@ begin
             estado_atual <= proximo_estado;
 
             -- Lógica do contador de frenagem
+            -- Erro aqui é que estamos usando proximo_estado ao invés de estado_atual
             if proximo_estado = FREANDO then
                 if contador_freio < TEMPO_FREIO then
                     contador_freio <= contador_freio + 1;
@@ -123,7 +131,7 @@ begin
         case estado_atual is
             when PARADO =>
                 em_movimento <= '0';
-                direcao <= "00";
+                direcao <= direcao;
                 freio <= '0';
                 
             when SUBINDO =>
@@ -138,7 +146,7 @@ begin
                 
             when FREANDO =>
                 em_movimento <= '0'; -- O motor não está "em movimento"
-                direcao <= "00";     
+                direcao <= direcao; -- Mantém a direção anterior
                 freio <= '1'; -- Freio ativo 
         end case;   
     end process;
