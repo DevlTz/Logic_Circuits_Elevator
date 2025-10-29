@@ -1,5 +1,6 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
 
 entity Porta is
     port (
@@ -20,7 +21,7 @@ end entity;
 architecture Behavioral of Porta is
     constant limite_tempo : unsigned(31 downto 0) := to_unsigned(250000000, 32);
     signal contador : unsigned(31 downto 0) := (others => '0');
-    signal temp : std_logic := '0'
+    signal temp : std_logic := '0';
 begin
     process(clk, rst)
     begin
