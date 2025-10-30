@@ -14,7 +14,7 @@ entity Porta is
         motor_mov : in std_logic; -- 1 = motor em movimento, 0 = motor parado
 
         -- Estado atual da porta (sensor)
-        porta_aberta : out std_logic;  -- 1 = aberta, 0 = fechada
+        porta_aberta : out std_logic  -- 1 = aberta, 0 = fechada
     );
 end entity;
 
