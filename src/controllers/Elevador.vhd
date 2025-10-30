@@ -28,7 +28,11 @@ entity Elevador is
          -- Estado interno
         andar_atual             : out integer range 0 to NUM_ANDARES-1; 
         estado_motor            : out std_logic_vector(1 downto 0); 
-        estado_porta            : out std_logic                     
+        estado_porta            : out std_logic     
+        
+        -- Para o display de sete segmentos
+        seg_MSD                : out std_logic_vector(6 downto 0); -- most significant digit
+        seg_LSD                : out std_logic_vector(6 downto 0)
     );
 end entity;
 
@@ -74,6 +78,17 @@ architecture Behavioral of Elevador is
         );
     end component;
 
+    component SeteSeg is
+        generic (
+            NUM_ANDARES : integer := 32
+        );
+        port (
+            andar_atual : in  integer range 0 to NUM_ANDARES-1;
+            seg_MSD     : out std_logic_vector(6 downto 0);
+            seg_LSD     : out std_logic_vector(6 downto 0)
+        );
+    end component;
+
     -- Sinais internos pra ser sensores
     signal sinal_porta_interna : std_logic;     -- ligando a saida porta_aberta da Porta_ins
     signal sinal_movimento_interno : std_logic; -- ligando a saida em_movimento do Motor_ins
@@ -82,6 +97,7 @@ architecture Behavioral of Elevador is
     
     signal comando_motor_s : std_logic_vector(1 downto 0);
     signal comando_porta_s : std_logic;
+    signal seg_MSD_s, seg_LSD_s : std_logic_vector(6 downto 0);
 
 begin
 
@@ -104,6 +120,20 @@ begin
             direcao      => sinal_direcao_motor,     -- Saída vai para o sinal interno
             freio        => sinal_freio_motor       -- Ligado a um sinal interno
         );
+
+    SeteSeg_ins : SeteSeg
+        generic map(
+            NUM_ANDARES => NUM_ANDARES
+        )
+        port map(
+            andar_atual => sensor_andar_atual,
+            seg_MSD     => seg_MSD,
+            seg_LSD     => seg_LSD
+        );
+    
+    -- Combina as requisições internas e externas
+    seg_MSD <= seg_MSD_s;
+    seg_LSD <= seg_LSD_s;
 
     requisicoes_totais <= fila_interna_reg or requisicoes_escalonador;
 
@@ -342,5 +372,6 @@ begin
     end process;
     comando_motor <= comando_motor_s;
     comando_porta <= comando_porta_s;
+
 
 end architecture Behavioral;
