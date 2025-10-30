@@ -38,7 +38,8 @@ architecture Behavioral of Elevador is
     signal proximo_andar : integer range 0 to NUM_ANDARES-1 := 0;
     signal direcao_atual      : std_logic_vector(1 downto 0) := "00";
     signal contador_porta     : integer range 0 to TEMPO_PORTA_ABERTA := 0; -- Timer da porta
-
+    signal fila_interna_reg : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
+    
     -- Estados da FSM
     type T_ESTADO is (
         IDLE,             -- Ocioso, esperando chamadas
@@ -78,7 +79,7 @@ architecture Behavioral of Elevador is
     signal sinal_movimento_interno : std_logic; -- ligando a saida em_movimento do Motor_ins
     signal sinal_direcao_motor : std_logic_vector(1 downto 0); -- ligando a saida direcao do Motor_ins
     signal sinal_freio_motor : std_logic;       -- ligando a saida freio do Motor_ins
-
+    
     signal comando_motor_s : std_logic_vector(1 downto 0);
     signal comando_porta_s : std_logic;
 
@@ -104,7 +105,7 @@ begin
             freio        => sinal_freio_motor       -- Ligado a um sinal interno
         );
 
-    requisicoes_totais <= requisicoes_internas or requisicoes_escalonador;
+    requisicoes_totais <= fila_interna_reg or requisicoes_escalonador;
 
     -- Calcular o Próximo Andar
     -- Lógica simples: Se movendo, continua na direção. Se parado, vai para a mais próxima.
@@ -258,9 +259,16 @@ begin
             estado_atual <= IDLE;
             contador_porta <= 0;
             direcao_atual <= "00";
+            fila_interna_reg <= (others => '0'); -- Limpa a fila no rst
         elsif rising_edge(clk) then
             -- Atualiza o Estado Atual
             estado_atual <= proximo_estado;
+
+            fila_interna_reg <= fila_interna_reg or requisicoes_internas;
+            
+            if proximo_estado = ABRINDO_PORTA then
+                fila_interna_reg(sensor_andar_atual) <= '0';
+            end if;
 
             -- Atualiza a Direção Atual (apenas quando começa a mover)
             if (estado_atual = PREPARANDO_MOVIMENTO and proximo_estado = MOVENDO) then
