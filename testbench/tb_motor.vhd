@@ -2,10 +2,10 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
-entity tb_Motor is
-end tb_Motor;
+entity tb_motor is
+end tb_motor;
 
-architecture sim of tb_Motor is
+architecture sim of tb_motor is
     -- Sinais locais
     signal clk, rst : std_logic := '0';
     signal comando  : std_logic_vector(1 downto 0) := "00";

@@ -2,10 +2,10 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
-entity tb_Porta is
-end tb_Porta;
+entity tb_porta is
+end tb_porta;
 
-architecture sim of tb_Porta is
+architecture sim of tb_porta is
     signal clk, rst : std_logic := '0';
     signal abre, motor_mov : std_logic := '0';
     signal porta_aberta : std_logic;
