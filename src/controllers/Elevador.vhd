@@ -56,7 +56,7 @@ architecture Behavioral of Elevador is
 
     function calcula_em_movimento(
         requisicoes_externas : std_logic_vector(31 downto 0);
-        requisicoes_internas : std_logic_vector(31 downto 0)
+        requisicoes_internas : std_logic_vector(31 downto 0);
     ) return std_logic is
         variable requisicoes_totais : std_logic_vector(31 downto 0);
         variable todas_reqs : std_logic := '0';
