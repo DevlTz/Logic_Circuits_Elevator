@@ -204,6 +204,9 @@ begin
                 -- Se chegou ao andar alvo
                 if sensor_andar_atual = proximo_andar then
                     proximo_estado <= FREANDO_MOTOR; -- Manda parar o motor
+                -- MAS: Se tiver uma requisição no andar atual (no caminho)
+                elsif requisicoes_totais(sensor_andar_atual) = '1' then
+                    proximo_estado <= FREANDO_MOTOR; -- Para no andar intermediário
                 end if;
 
             when FREANDO_MOTOR =>
