@@ -1,3 +1,7 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
 entity Elevador is
     port (
         clk   : in std_logic;
@@ -6,8 +10,6 @@ entity Elevador is
         -- Requisições
         requisicoes_escalonador : in std_logic_vector(31 downto 0); -- externas
         requisicoes_internas    : in std_logic_vector(31 downto 0); -- botões da cabine
-
-        -- Precisamos de um registrador pra isso aqui..........
 
         -- Sensores
         sensor_andar_atual      : in integer range 0 to 31;
@@ -24,30 +26,35 @@ entity Elevador is
 end entity;
 
 architecture Behavioral of Elevador is
+    -- Sinais internos para as saídas (para poder ler e escrever)
+    signal comando_motor_int  : std_logic_vector(1 downto 0);
+    signal comando_porta_int  : std_logic;
+    signal andar_atual_int    : integer range 0 to 31;
+    
     signal requisicoes_totais : std_logic_vector(31 downto 0);
     signal proximo_andar      : integer range 0 to 31;
 
     -- Sinais internos para conexão de componentes
     signal sensor_porta_aberta : std_logic;
-    signal sensor_movimento   : std_logic;
-    signal sensor_direcao : std_logic_vector(1 downto 0);
+    signal sensor_movimento    : std_logic;
+    signal sensor_direcao      : std_logic_vector(1 downto 0);
 
     component Porta is 
         port (
-            clk        : in  std_logic;
-            rst        : in  std_logic;
-            abre       : in  std_logic;  -- 1 = abrir, 0 = fechar
-            motor_mov  : in std_logic; -- 1 = motor em movimento, 0 = motor parado
-            porta_aberta : out std_logic  -- 1 = aberta, 0 = fechada
+            clk          : in  std_logic;
+            rst          : in  std_logic;
+            abre         : in  std_logic;  -- 1 = abrir, 0 = fechar
+            motor_mov    : in  std_logic;  -- 1 = motor em movimento, 0 = motor parado
+            porta_aberta : out std_logic   -- 1 = aberta, 0 = fechada
         );
     end component;
     
     component Motor is 
         port (
-            clk        : in  std_logic;
-            rst        : in  std_logic;
-            comando    : in  std_logic_vector(1 downto 0);  
-            porta      : in std_logic;
+            clk          : in  std_logic;
+            rst          : in  std_logic;
+            comando      : in  std_logic_vector(1 downto 0);  
+            porta        : in  std_logic;
             em_movimento : out std_logic;  -- 1 = movendo, 0 = parado
             direcao      : out std_logic_vector(1 downto 0); -- mesma codificação do comando
             freio        : out std_logic
@@ -55,75 +62,84 @@ architecture Behavioral of Elevador is
     end component;
 
     function calcula_em_movimento(
-        requisicoes_externas : std_logic_vector(31 downto 0);
-        requisicoes_internas : std_logic_vector(31 downto 0)
+        req_externas : std_logic_vector(31 downto 0);
+        req_internas : std_logic_vector(31 downto 0)
     ) return std_logic is
-        variable requisicoes_totais : std_logic_vector(31 downto 0);
-        variable todas_reqs : std_logic := '0';
+        variable req_totais : std_logic_vector(31 downto 0);
+        variable tem_req    : std_logic := '0';
     begin
-        -- soma entre as requisições
-        requisicoes_totais := requisicoes_externas or requisicoes_internas;
+        -- Combina as requisições
+        req_totais := req_externas or req_internas;
 
-        -- NOR (lembre-se que o NOR quando todas as portas são 0, retorna 1)
-        for i in requisicoes_totais'range loop
-            todas_reqs := todas_reqs or requisicoes_totais(i);
+        -- Verifica se há alguma requisição
+        for i in req_totais'range loop
+            tem_req := tem_req or req_totais(i);
         end loop;
 
-        -- Logo... iremos retornar da seguinte forma:
-        -- '1' = parado, '0' = tem requisição = mover
-        return todas_reqs;
+        -- Retorna: '1' = tem requisição, '0' = sem requisição
+        return tem_req;
     end function;
 
 begin
+    -- Instância da Porta
     Porta_ins : Porta 
         port map(
-            clk => clk,
-            rst => rst,
-            abre => comando_porta, 
-            motor_mov => sensor_movimento, -- Alterado com o que era :  motor_mov => comando_motor | A explicação pra isso é simples > A porta só precisa saber se o motor tá movendo ou nem
+            clk          => clk,
+            rst          => rst,
+            abre         => comando_porta_int, 
+            motor_mov    => sensor_movimento,
             porta_aberta => sensor_porta_aberta
         );
 
+    -- Instância do Motor
     Motor_ins : Motor
         port map(
-            clk => clk,
-            rst => rst,
-            comando => comando_motor,
-            porta => sensor_porta_aberta,
-            em_movimento => sensor_movimento, -- Alterando o que era : em_movimento => 1 bit | A gente tem que fazer a ligação pra o sensor_movimento que em si é uma entrada do Elveador
-            direcao => sensor_direcao,
-            freio => open -- isso vai dizer que não vai tá nada ligado enquanto nada rolar. '-'
+            clk          => clk,
+            rst          => rst,
+            comando      => comando_motor_int,
+            porta        => sensor_porta_aberta,
+            em_movimento => sensor_movimento,
+            direcao      => sensor_direcao,
+            freio        => open
         );
 
-    estado_porta <= sensor_porta_aberta;
-    estado_motor <= sensor_direcao;
+    -- Atribuição dos sinais internos às saídas
+    comando_motor <= comando_motor_int;
+    comando_porta <= comando_porta_int;
+    andar_atual   <= andar_atual_int;
+    estado_porta  <= sensor_porta_aberta;
+    estado_motor  <= sensor_direcao;
 
+    -- Processo principal de controle
     process(clk, rst)
     begin
         if rst = '1' then 
-            comando_motor <= '00';
-            comando_porta <= '0';
-            andar_atual <= 0;
+            comando_motor_int <= "00";
+            comando_porta_int <= '0';
+            andar_atual_int   <= 0;
+            proximo_andar     <= 0;
 
         elsif rising_edge(clk) then
-            andar_atual <= sensor_andar_atual;
-            proximo_andar <= 0; -- TODO
+            andar_atual_int <= sensor_andar_atual;
+            proximo_andar   <= 0; -- TODO: implementar lógica de escalonamento
             
+            -- Verifica se há requisições
             if calcula_em_movimento(requisicoes_escalonador, requisicoes_internas) = '1' then
-                if proximo_andar < andar_atual then -- descer
-                    comando_motor <= '10';
-                    comando_porta <= '0';
-                elsif proximo_andar > andar_atual then -- subir
-                    comando_motor <= '01';
-                    comando_porta <= '0';
-                else -- chegou 
-                    comando_motor <= '00';
-                    comando_porta <= '1';
+                if proximo_andar < andar_atual_int then -- descer
+                    comando_motor_int <= "10";
+                    comando_porta_int <= '0';
+                elsif proximo_andar > andar_atual_int then -- subir
+                    comando_motor_int <= "01";
+                    comando_porta_int <= '0';
+                else -- chegou no andar
+                    comando_motor_int <= "00";
+                    comando_porta_int <= '1';
                 end if;
-            else
-                comando_motor <= '00';
-                comando_porta <= '0';
+            else -- sem requisições
+                comando_motor_int <= "00";
+                comando_porta_int <= '0';
             end if;
         end if;
     end process;
-    
+
+end Behavioral;
