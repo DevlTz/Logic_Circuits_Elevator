@@ -3,51 +3,49 @@ use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
 entity tb_elevador is
--- Testbench não tem portas
 end entity;
 
-architecture Behavioral of tb_elevador is
+architecture sim of tb_elevador is
 
     -- Parâmetros
-    constant NUM_ANDARES : integer := 8;
+    constant NUM_ANDARES : integer := 8; -- Pode ajustar para teste rápido
     constant TEMPO_PORTA_ABERTA : integer := 10;
 
-    -- Sinais do DUT
-    signal clk   : std_logic := '0';
-    signal rst   : std_logic := '1';
+    -- Sinais
+    signal clk       : std_logic := '0';
+    signal rst       : std_logic := '1';
+    signal req_ext   : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
+    signal req_int   : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
+    signal sensor_andar : integer range 0 to NUM_ANDARES-1 := 0;
 
-    signal requisicoes_escalonador : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
-    signal requisicoes_internas    : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
-    signal sensor_andar_atual      : integer range 0 to NUM_ANDARES-1 := 0;
-
-    signal comando_motor : std_logic_vector(1 downto 0);
-    signal comando_porta : std_logic;
-    signal andar_atual   : integer range 0 to NUM_ANDARES-1;
-    signal estado_motor  : std_logic_vector(1 downto 0);
-    signal estado_porta  : std_logic;
+    signal cmd_motor : std_logic_vector(1 downto 0);
+    signal cmd_porta : std_logic;
+    signal estado_andar : integer range 0 to NUM_ANDARES-1;
+    signal estado_motor : std_logic_vector(1 downto 0);
+    signal estado_porta : std_logic;
 
 begin
 
-    -- Instancia o DUT
-    DUT : entity work.Elevador
-        generic map(
+    -- Instancia o Elevador
+    DUT: entity work.Elevador
+        generic map (
             NUM_ANDARES => NUM_ANDARES,
             TEMPO_PORTA_ABERTA => TEMPO_PORTA_ABERTA
         )
-        port map(
+        port map (
             clk => clk,
             rst => rst,
-            requisicoes_escalonador => requisicoes_escalonador,
-            requisicoes_internas    => requisicoes_internas,
-            sensor_andar_atual      => sensor_andar_atual,
-            comando_motor           => comando_motor,
-            comando_porta           => comando_porta,
-            andar_atual             => andar_atual,
+            requisicoes_escalonador => req_ext,
+            requisicoes_internas    => req_int,
+            sensor_andar_atual      => sensor_andar,
+            comando_motor           => cmd_motor,
+            comando_porta           => cmd_porta,
+            andar_atual             => estado_andar,
             estado_motor            => estado_motor,
             estado_porta            => estado_porta
         );
 
-    -- Clock
+    -- Clock 10ns
     clk_process : process
     begin
         while true loop
@@ -59,39 +57,35 @@ begin
     end process;
 
     -- Estímulos
-    stim_proc : process
+    stim_proc: process
     begin
         -- Reset inicial
         rst <= '1';
         wait for 20 ns;
         rst <= '0';
+        wait for 10 ns;
 
-        -- Simula uma requisição externa para o andar 3
-        requisicoes_escalonador <= (others => '0');
-        requisicoes_escalonador(3) <= '1';
-        wait for 100 ns;
-
-        -- Simula uma requisição interna para o andar 6
-        requisicoes_internas <= (others => '0');
-        requisicoes_internas(6) <= '1';
-        wait for 150 ns;
-
-        -- Muda o sensor de andar (simula movimento do elevador)
-        sensor_andar_atual <= 1;
-        wait for 20 ns;
-        sensor_andar_atual <= 2;
-        wait for 20 ns;
-        sensor_andar_atual <= 3; -- Chegou no andar solicitado
+        -- Requisições externas
+        req_ext(3) <= '1'; -- Andar 3
         wait for 50 ns;
-        sensor_andar_atual <= 4;
-        wait for 20 ns;
-        sensor_andar_atual <= 5;
-        wait for 20 ns;
-        sensor_andar_atual <= 6; -- Chegou no andar solicitado interno
+        req_ext(7) <= '1'; -- Andar 7
+        wait for 50 ns;
+        req_ext(1) <= '1'; -- Andar 1
+
+        -- Requisições internas
+        wait for 50 ns;
+        req_int(5) <= '1'; -- Botão andar 5
+
+        -- Simular sensor de andar (fake simplificado, sobe automaticamente para teste)
+        for i in 1 to NUM_ANDARES-1 loop
+            wait for 10 ns;
+            sensor_andar <= i;
+        end loop;
+
         wait for 50 ns;
 
-        -- Final da simulação
+        -- Fim da simulação
         wait;
     end process;
 
-end architecture Behavioral;
+end architecture sim;
