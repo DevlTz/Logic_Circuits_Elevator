@@ -12,8 +12,9 @@ STOP_TIME="10us"
 echo "=== Escolha o que deseja simular ==="
 echo "1) Componentes (Motor e Porta)"
 echo "2) Elevador"
-echo "3) Todos"
-read "?Digite a opção [1-3]: " OPC
+echo "3) Escalonador"
+echo "4) Todos"
+read "?Digite a opção [1-4]: " OPC
 
 # Função para compilar componentes
 compile_components() {
@@ -34,6 +35,14 @@ compile_elevador() {
     ghdl -a $SRC_DIR/controllers/Elevador.vhd
     ghdl -a $TB_DIR/tb_elevador.vhd
     ghdl -e tb_elevador
+}
+
+# Função para compilar Escalonador
+compile_escalonador() {
+    echo "Compilando Escalonador..."
+    ghdl -a $SRC_DIR/controllers/Escalonador.vhd
+    ghdl -a $TB_DIR/tb_escalonador.vhd
+    ghdl -e tb_escalonador
 }
 
 # Função para rodar simulação e gerar VCD/TXT
@@ -57,11 +66,17 @@ case $OPC in
         run_sim tb_elevador
         ;;
     3)
+        compile_escalonador
+        run_sim tb_escalonador
+        ;;
+    4)
         compile_components
         compile_elevador
+        compile_escalonador
         run_sim tb_motor
         run_sim tb_porta
         run_sim tb_elevador
+        run_sim tb_escalonador
         ;;
     *)
         echo "Opção inválida!"

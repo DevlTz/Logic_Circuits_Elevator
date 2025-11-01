@@ -5,64 +5,64 @@ use IEEE.numeric_std.all;
 entity Elevador is
     generic (
         NUM_ANDARES : integer := 32;
-        -- Tempo que a porta fica aberta (em ciclos de clock)
-        TEMPO_PORTA_ABERTA : integer := 10000 -- Exemplo
+        TEMPO_PORTA_ABERTA : integer := 10000
     );
     port (
         clk   : in std_logic;
         rst   : in std_logic;
 
-        -- Requisições
-        requisicoes_escalonador : in std_logic_vector(NUM_ANDARES-1 downto 0); -- externas
-        requisicoes_internas    : in std_logic_vector(NUM_ANDARES-1 downto 0); -- botões da cabine
+        -- Interface com escalonador
+        proximo_andar_escalonador : in integer range 0 to NUM_ANDARES-1;
+        requisicoes_internas      : in std_logic_vector(NUM_ANDARES-1 downto 0);
 
         -- Sensores
-        -- NOTA: sensor_porta_aberta e sensor_movimento NÃO SÃO MAIS ENTRADAS,
-        -- vão ser gerados pelos componentes internos Motor e Porta.
-        sensor_andar_atual      : in integer range 0 to NUM_ANDARES-1;
+        sensor_andar_atual        : in integer range 0 to NUM_ANDARES-1;
 
         -- Saídas para motor e porta
-        comando_motor           : out std_logic_vector(1 downto 0); -- 00=parado, 01=subindo, 10=descendo
-        comando_porta           : out std_logic;                    -- 0=fechada, 1=abrindo
+        comando_motor             : out std_logic_vector(1 downto 0);
+        comando_porta             : out std_logic;
 
-         -- Estado interno
-        andar_atual             : out integer range 0 to NUM_ANDARES-1; 
-        estado_motor            : out std_logic_vector(1 downto 0); 
-        estado_porta            : out std_logic     
+        -- Sinal de sincronização com escalonador
+        elevador_pronto           : out std_logic;
+
+        -- Estado interno
+        andar_atual               : out integer range 0 to NUM_ANDARES-1; 
+        estado_motor              : out std_logic_vector(1 downto 0); 
+        estado_porta              : out std_logic;
         
-        -- Para o display de sete segmentos
-        seg_MSD                : out std_logic_vector(6 downto 0); -- most significant digit
-        seg_LSD                : out std_logic_vector(6 downto 0)
+        -- Display de sete segmentos
+        seg_MSD                   : out std_logic_vector(6 downto 0);
+        seg_LSD                   : out std_logic_vector(6 downto 0)
     );
 end entity;
 
 architecture Behavioral of Elevador is
 
-    signal requisicoes_totais : std_logic_vector(NUM_ANDARES-1 downto 0);
-    signal proximo_andar : integer range 0 to NUM_ANDARES-1 := 0;
-    signal direcao_atual      : std_logic_vector(1 downto 0) := "00";
-    signal contador_porta     : integer range 0 to TEMPO_PORTA_ABERTA := 0; -- Timer da porta
-    signal fila_interna_reg : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
+    signal requisicoes_totais     : std_logic_vector(NUM_ANDARES-1 downto 0);
+    signal proximo_andar          : integer range 0 to NUM_ANDARES-1 := 0;
+    signal direcao_atual          : std_logic_vector(1 downto 0) := "00";
+    signal contador_porta         : integer range 0 to TEMPO_PORTA_ABERTA := 0;
+    signal fila_interna_reg       : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
+    signal fila_escalonador_reg   : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
     
-    -- Estados da FSM
     type T_ESTADO is (
-        IDLE,             -- Ocioso, esperando chamadas
-        PREPARANDO_MOVIMENTO,   -- Porta fechada, decidindo direção e iniciando motor
-        MOVENDO,          -- Motor ativo, subindo ou descendo
-        FREANDO_MOTOR,    -- Comando PARAR enviado ao motor, esperando confirmação de parada
-        ABRINDO_PORTA,    -- Comando ABRIR enviado à porta, esperando confirmação de abertura
-        PORTA_ABERTA,     -- Porta aberta, aguardando temporizador
-        FECHANDO_PORTA    -- Comando FECHAR enviado à porta, esperando confirmação de fechamento
+        IDLE,
+        PREPARANDO_MOVIMENTO,
+        MOVENDO,
+        FREANDO_MOTOR,
+        ABRINDO_PORTA,
+        PORTA_ABERTA,
+        FECHANDO_PORTA
     );
     signal estado_atual, proximo_estado : T_ESTADO := IDLE;
 
     component Porta is
         port (
-            clk         : in  std_logic;
-            rst         : in  std_logic;
-            abre        : in  std_logic; -- 1 = abrir, 0 = fechar
-            motor_mov   : in  std_logic; -- 1 = motor em movimento, 0 = motor parado
-            porta_aberta : out std_logic -- 1 = aberta, 0 = fechada
+            clk          : in  std_logic;
+            rst          : in  std_logic;
+            abre         : in  std_logic;
+            motor_mov    : in  std_logic;
+            porta_aberta : out std_logic
         );
     end component;
 
@@ -72,8 +72,8 @@ architecture Behavioral of Elevador is
             rst          : in  std_logic;
             comando      : in  std_logic_vector(1 downto 0);
             porta        : in  std_logic;
-            em_movimento : out std_logic; -- 1 = movendo, 0 = parado
-            direcao      : out std_logic_vector(1 downto 0); -- mesma codificação do comando
+            em_movimento : out std_logic;
+            direcao      : out std_logic_vector(1 downto 0);
             freio        : out std_logic
         );
     end component;
@@ -89,15 +89,13 @@ architecture Behavioral of Elevador is
         );
     end component;
 
-    -- Sinais internos pra ser sensores
-    signal sinal_porta_interna : std_logic;     -- ligando a saida porta_aberta da Porta_ins
-    signal sinal_movimento_interno : std_logic; -- ligando a saida em_movimento do Motor_ins
-    signal sinal_direcao_motor : std_logic_vector(1 downto 0); -- ligando a saida direcao do Motor_ins
-    signal sinal_freio_motor : std_logic;       -- ligando a saida freio do Motor_ins
+    signal sinal_porta_interna      : std_logic;
+    signal sinal_movimento_interno  : std_logic;
+    signal sinal_direcao_motor      : std_logic_vector(1 downto 0);
+    signal sinal_freio_motor        : std_logic;
     
-    signal comando_motor_s : std_logic_vector(1 downto 0);
-    signal comando_porta_s : std_logic;
-    signal seg_MSD_s, seg_LSD_s : std_logic_vector(6 downto 0);
+    signal comando_motor_s          : std_logic_vector(1 downto 0);
+    signal comando_porta_s          : std_logic;
 
 begin
 
@@ -106,8 +104,8 @@ begin
             clk          => clk,
             rst          => rst,
             abre         => comando_porta_s,
-            motor_mov    => sinal_movimento_interno, -- Usa o sinal interno do motor
-            porta_aberta => sinal_porta_interna      -- Saída vai para o sinal interno
+            motor_mov    => sinal_movimento_interno,
+            porta_aberta => sinal_porta_interna
         );
 
     Motor_ins : Motor
@@ -115,10 +113,10 @@ begin
             clk          => clk,
             rst          => rst,
             comando      => comando_motor_s,
-            porta        => sinal_porta_interna,      -- Usa o sinal interno da porta
-            em_movimento => sinal_movimento_interno, -- Saída vai para o sinal interno
-            direcao      => sinal_direcao_motor,     -- Saída vai para o sinal interno
-            freio        => sinal_freio_motor       -- Ligado a um sinal interno
+            porta        => sinal_porta_interna,
+            em_movimento => sinal_movimento_interno,
+            direcao      => sinal_direcao_motor,
+            freio        => sinal_freio_motor
         );
 
     SeteSeg_ins : SeteSeg
@@ -130,213 +128,247 @@ begin
             seg_MSD     => seg_MSD,
             seg_LSD     => seg_LSD
         );
-    
-    -- Combina as requisições internas e externas
-    seg_MSD <= seg_MSD_s;
-    seg_LSD <= seg_LSD_s;
 
-    requisicoes_totais <= fila_interna_reg or requisicoes_escalonador;
+    -- Combina todas as requisições (internas + escalonador)
+    requisicoes_totais <= fila_interna_reg or fila_escalonador_reg;
 
-    -- Calcular o Próximo Andar
-    -- Lógica simples: Se movendo, continua na direção. Se parado, vai para a mais próxima.
+    -- ===============================
+    -- LÓGICA DE SELEÇÃO DO PRÓXIMO ANDAR (ALGORITMO SCAN)
+    -- ===============================
     process(requisicoes_totais, direcao_atual, sensor_andar_atual)
         variable proximo_temp : integer := sensor_andar_atual;
-        variable achou_alvo : boolean := false;
+        variable achou_alvo   : boolean := false;
         variable distancia_min : integer := NUM_ANDARES;
     begin
-        -- Se estiver subindo, procura o próximo pedido ACIMA
+        achou_alvo := false;
+
+        -- Se está subindo, procura próxima requisição ACIMA
         if direcao_atual = "01" then
             for i in sensor_andar_atual + 1 to NUM_ANDARES-1 loop
                 if requisicoes_totais(i) = '1' then
                     proximo_temp := i;
                     achou_alvo := true;
-                    exit; -- Sai do loop assim que achar o primeiro na direção
+                    report "SCAN: Subindo - Proximo andar: " & integer'image(i);
+                    exit;
                 end if;
             end loop;
-        -- Se estiver descendo, procura o próximo pedido ABAIXO
+        -- Se está descendo, procura próxima requisição ABAIXO
         elsif direcao_atual = "10" then
-             for i in sensor_andar_atual - 1 downto 0 loop
+            for i in sensor_andar_atual - 1 downto 0 loop
                 if requisicoes_totais(i) = '1' then
                     proximo_temp := i;
                     achou_alvo := true;
+                    report "SCAN: Descendo - Proximo andar: " & integer'image(i);
                     exit;
                 end if;
             end loop;
         end if;
 
-        -- Se não achou alvo no sentido atual (ou está parado), procure o mais próximo
+        -- Se não achou no sentido atual (ou está parado), procura o mais próximo
         if not achou_alvo then
-            distancia_min := NUM_ANDARES; -- Reseta distância mínima
-            proximo_temp := sensor_andar_atual; -- Default é ficar onde está
-            achou_alvo := false; -- Garante que achou_alvo é resetado
+            distancia_min := NUM_ANDARES;
+            proximo_temp := sensor_andar_atual;
+            
             for i in 0 to NUM_ANDARES-1 loop
-                 if requisicoes_totais(i) = '1' then
-                     if abs(i - sensor_andar_atual) < distancia_min then
-                         distancia_min := abs(i - sensor_andar_atual);
-                         proximo_temp := i;
-                         achou_alvo := true; -- Marca que achou um alvo
-                     -- Se a distância for a mesma, mantém o primeiro encontrado (pode otimizar)
-                     elsif abs(i- sensor_andar_atual) = distancia_min and not achou_alvo then
-                         proximo_temp := i;
-                         achou_alvo := true;
-                     end if;
-                 end if;
+                if requisicoes_totais(i) = '1' then
+                    if abs(i - sensor_andar_atual) < distancia_min then
+                        distancia_min := abs(i - sensor_andar_atual);
+                        proximo_temp := i;
+                        achou_alvo := true;
+                    end if;
+                end if;
             end loop;
-            -- Se mesmo assim não achou nenhum alvo, garante que fica no andar atual
-            if not achou_alvo then
-                 proximo_temp := sensor_andar_atual;
+            
+            if achou_alvo then
+                report "SCAN: Mudando direcao - Proximo andar mais proximo: " & integer'image(proximo_temp);
             end if;
         end if;
 
         proximo_andar <= proximo_temp;
-
     end process;
 
-
-    -- Próximo Estado da FSM
-    process(estado_atual, requisicoes_totais, sensor_andar_atual, sinal_porta_interna, sinal_movimento_interno, proximo_andar, contador_porta, direcao_atual)
+    -- ===============================
+    -- MÁQUINA DE ESTADOS - LÓGICA COMBINACIONAL
+    -- ===============================
+    process(estado_atual, requisicoes_totais, sensor_andar_atual, sinal_porta_interna, 
+            sinal_movimento_interno, proximo_andar, contador_porta)
     begin
-        -- Comportamento Padrão: Manter o estado
         proximo_estado <= estado_atual;
 
         case estado_atual is
 
             when IDLE =>
-                -- Se houver requisição no andar atual E a porta estiver fechada
                 if requisicoes_totais(sensor_andar_atual) = '1' and sinal_porta_interna = '0' then
                     proximo_estado <= ABRINDO_PORTA;
-                -- Se houver requisição em outro andar E a porta estiver fechada
-                elsif requisicoes_totais /= std_logic_vector(to_unsigned(0, requisicoes_totais'length)) and sinal_porta_interna = '0' then
+                    report "FSM: IDLE -> ABRINDO_PORTA (requisicao no andar atual)";
+                elsif requisicoes_totais /= std_logic_vector(to_unsigned(0, requisicoes_totais'length)) 
+                      and sinal_porta_interna = '0' then
                     proximo_estado <= PREPARANDO_MOVIMENTO;
+                    report "FSM: IDLE -> PREPARANDO_MOVIMENTO (ha requisicoes pendentes)";
                 end if;
 
             when PREPARANDO_MOVIMENTO =>
-                -- Garante que a porta esteja fechada antes de mover
                 if sinal_porta_interna = '0' then
-                    -- Decide a direção com base no alvo
                     if proximo_andar > sensor_andar_atual then
                         proximo_estado <= MOVENDO;
+                        report "FSM: PREPARANDO_MOVIMENTO -> MOVENDO (subindo para andar " & integer'image(proximo_andar) & ")";
                     elsif proximo_andar < sensor_andar_atual then
                         proximo_estado <= MOVENDO;
-                    else -- O alvo é o andar atual
-                        if requisicoes_totais(sensor_andar_atual) = '1' then
-                            proximo_estado <= ABRINDO_PORTA;
-                        else
-                             proximo_estado <= IDLE; -- Não há mais o que fazer aqui
-                        end if;
+                        report "FSM: PREPARANDO_MOVIMENTO -> MOVENDO (descendo para andar " & integer'image(proximo_andar) & ")";
+                    elsif requisicoes_totais(sensor_andar_atual) = '1' then
+                        proximo_estado <= ABRINDO_PORTA;
+                        report "FSM: PREPARANDO_MOVIMENTO -> ABRINDO_PORTA (ja esta no andar)";
+                    else
+                        proximo_estado <= IDLE;
+                        report "FSM: PREPARANDO_MOVIMENTO -> IDLE (sem requisicoes validas)";
                     end if;
-                -- Se a porta não estiver fechada (?), volta pra IDLE por segurança
                 else
                     proximo_estado <= IDLE;
+                    report "FSM: PREPARANDO_MOVIMENTO -> IDLE (porta ainda aberta)";
                 end if;
 
             when MOVENDO =>
-                -- Se chegou ao andar alvo
                 if sensor_andar_atual = proximo_andar then
-                    proximo_estado <= FREANDO_MOTOR; -- Manda parar o motor
-                -- MAS: Se tiver uma requisição no andar atual (no caminho)
+                    proximo_estado <= FREANDO_MOTOR;
+                    report "FSM: MOVENDO -> FREANDO_MOTOR (chegou ao andar destino " & integer'image(proximo_andar) & ")";
                 elsif requisicoes_totais(sensor_andar_atual) = '1' then
-                    proximo_estado <= FREANDO_MOTOR; -- Para no andar intermediário
+                    proximo_estado <= FREANDO_MOTOR;
+                    report "FSM: MOVENDO -> FREANDO_MOTOR (parada intermediaria no andar " & integer'image(sensor_andar_atual) & ")";
                 end if;
 
             when FREANDO_MOTOR =>
-                -- Espera o motor confirmar que parou (sinal_movimento_interno vai para '0')
                 if sinal_movimento_interno = '0' then
-                     -- Se parou no andar que tinha requisição, abre a porta
-                     if requisicoes_totais(sensor_andar_atual) = '1' then
-                         proximo_estado <= ABRINDO_PORTA;
-                     -- Se parou por outro motivo ou não há requisição neste andar
-                     else
-                         if requisicoes_totais /= std_logic_vector(to_unsigned(0, requisicoes_totais'length)) then
-                             proximo_estado <= PREPARANDO_MOVIMENTO; -- Verifica se há outro alvo
-                         else
-                             proximo_estado <= IDLE;
-                         end if;
-                     end if;
+                    if requisicoes_totais(sensor_andar_atual) = '1' then
+                        proximo_estado <= ABRINDO_PORTA;
+                        report "FSM: FREANDO_MOTOR -> ABRINDO_PORTA (motor parado, abrindo porta)";
+                    elsif requisicoes_totais /= std_logic_vector(to_unsigned(0, requisicoes_totais'length)) then
+                        proximo_estado <= PREPARANDO_MOVIMENTO;
+                        report "FSM: FREANDO_MOTOR -> PREPARANDO_MOVIMENTO (motor parado, mais requisicoes)";
+                    else
+                        proximo_estado <= IDLE;
+                        report "FSM: FREANDO_MOTOR -> IDLE (motor parado, sem mais requisicoes)";
+                    end if;
                 end if;
 
             when ABRINDO_PORTA =>
-                -- Espera o sensor da porta confirmar que abriu
                 if sinal_porta_interna = '1' then
                     proximo_estado <= PORTA_ABERTA;
+                    report "FSM: ABRINDO_PORTA -> PORTA_ABERTA (porta totalmente aberta)";
                 end if;
 
             when PORTA_ABERTA =>
-                -- Espera o temporizador terminar
-                if contador_porta >= TEMPO_PORTA_ABERTA then -- >= é mais seguro que =
+                if contador_porta >= TEMPO_PORTA_ABERTA then
                     proximo_estado <= FECHANDO_PORTA;
+                    report "FSM: PORTA_ABERTA -> FECHANDO_PORTA (timeout de " & integer'image(TEMPO_PORTA_ABERTA) & " ciclos)";
                 end if;
-                -- TODO: Sensor de presença para manter aberta ( NÂO TENHO CERTEZA SE A GENTE CONSEGUE ISSO ANTES DE TUDO, MAS>>>>>>>...)
 
             when FECHANDO_PORTA =>
-                -- Espera o sensor da porta confirmar que fechou
                 if sinal_porta_interna = '0' then
-                    -- Decide o que fazer depois de fechar
                     if requisicoes_totais /= std_logic_vector(to_unsigned(0, requisicoes_totais'length)) then
-                         proximo_estado <= PREPARANDO_MOVIMENTO; -- tem mais trabalho para ser feito // avisa
+                        proximo_estado <= PREPARANDO_MOVIMENTO;
+                        report "FSM: FECHANDO_PORTA -> PREPARANDO_MOVIMENTO (porta fechada, ha mais requisicoes)";
                     else
-                         proximo_estado <= IDLE;           -- Voltar ao parado
+                        proximo_estado <= IDLE;
+                        report "FSM: FECHANDO_PORTA -> IDLE (porta fechada, sem mais requisicoes)";
                     end if;
                 end if;
-                -- TODO: Sensor de obstrução para reabrir (Mesma coisinha do uqe falei ali em cima... '-')
 
             when others =>
                 proximo_estado <= IDLE;
+                report "FSM: Estado invalido, voltando para IDLE" severity warning;
 
         end case;
     end process;
 
+    -- ===============================
+    -- PROCESSO PRINCIPAL SINCRONIZADO
+    -- ===============================
     process(clk, rst)
     begin
         if rst = '1' then
             estado_atual <= IDLE;
             contador_porta <= 0;
             direcao_atual <= "00";
-            fila_interna_reg <= (others => '0'); -- Limpa a fila no rst
+            fila_interna_reg <= (others => '0');
+            fila_escalonador_reg <= (others => '0');
+            elevador_pronto <= '0';
+            report "========== RESET ATIVADO ==========";
+            
         elsif rising_edge(clk) then
-            -- Atualiza o Estado Atual
             estado_atual <= proximo_estado;
-
+            
+            -- Registra requisições internas
+            if requisicoes_internas /= (NUM_ANDARES-1 downto 0 => '0') then
+                report "Requisicoes internas recebidas";
+            end if;
             fila_interna_reg <= fila_interna_reg or requisicoes_internas;
             
-            if proximo_estado = ABRINDO_PORTA then
-                fila_interna_reg(sensor_andar_atual) <= '0';
+            -- Registra requisição do escalonador (converte integer para bit)
+            if proximo_andar_escalonador /= sensor_andar_atual then
+                if fila_escalonador_reg(proximo_andar_escalonador) = '0' then
+                    report "Escalonador solicitou andar: " & integer'image(proximo_andar_escalonador);
+                end if;
+                fila_escalonador_reg(proximo_andar_escalonador) <= '1';
+            end if;
+            
+            -- Sinaliza quando completa um atendimento
+            if estado_atual = FECHANDO_PORTA and proximo_estado = IDLE then
+                elevador_pronto <= '1';
+                report "========== ELEVADOR PRONTO (voltando para IDLE) ==========";
+            elsif estado_atual = FECHANDO_PORTA and proximo_estado = PREPARANDO_MOVIMENTO then
+                elevador_pronto <= '1';
+                report "========== ELEVADOR PRONTO (preparando proximo movimento) ==========";
+            else
+                elevador_pronto <= '0';
+            end if;
+            
+            -- Limpa requisições atendidas quando abre a porta
+            if proximo_estado = ABRINDO_PORTA and estado_atual /= ABRINDO_PORTA then
+                report "Atendendo andar " & integer'image(sensor_andar_atual) & " - Limpando requisicoes";
+                if requisicoes_internas(sensor_andar_atual) = '0' then
+                    fila_interna_reg(sensor_andar_atual) <= '0';
+                end if;
+                fila_escalonador_reg(sensor_andar_atual) <= '0';
             end if;
 
-            -- Atualiza a Direção Atual (apenas quando começa a mover)
+            -- Atualiza direção quando começa a mover
             if (estado_atual = PREPARANDO_MOVIMENTO and proximo_estado = MOVENDO) then
-                 if proximo_andar > sensor_andar_atual then
-                     direcao_atual <= "01";
-                 elsif proximo_andar < sensor_andar_atual then
-                     direcao_atual <= "10";
-                 else
-                     direcao_atual <= "00"; -- Caso não deva mover
-                 end if;
-            -- Zera a direção quando efetivamente para (transição para IDLE ou ABRIR)
+                if proximo_andar > sensor_andar_atual then
+                    direcao_atual <= "01";
+                    report "Direcao definida: SUBINDO (andar atual: " & integer'image(sensor_andar_atual) & 
+                           " -> destino: " & integer'image(proximo_andar) & ")";
+                elsif proximo_andar < sensor_andar_atual then
+                    direcao_atual <= "10";
+                    report "Direcao definida: DESCENDO (andar atual: " & integer'image(sensor_andar_atual) & 
+                           " -> destino: " & integer'image(proximo_andar) & ")";
+                else
+                    direcao_atual <= "00";
+                    report "Direcao definida: PARADO";
+                end if;
             elsif proximo_estado = IDLE or proximo_estado = ABRINDO_PORTA then
-                 direcao_atual <= "00";
+                direcao_atual <= "00";
             end if;
 
-            -- Lógica do Contador da Porta
+            -- Timer da porta
             if estado_atual = PORTA_ABERTA then
                 if contador_porta < TEMPO_PORTA_ABERTA then
                     contador_porta <= contador_porta + 1;
                 end if;
             else
-                contador_porta <= 0; -- Zera o contador em qualquer outro estado
+                contador_porta <= 0;
             end if;
 
         end if;
     end process;
 
-    -- Lógica de Saída pra definir Comandos e Status Externo
+    -- ===============================
+    -- LÓGICA DE SAÍDA PARA COMANDOS
+    -- ===============================
     process(estado_atual, direcao_atual, sensor_andar_atual, sinal_porta_interna)
     begin
-        -- Saídas de Comando (Defaults)
-        comando_motor_s <= "00"; -- Default: Parado
-        comando_porta_s <= '0';  -- Default: Fechar/Manter Fechada
+        comando_motor_s <= "00";
+        comando_porta_s <= '0';
 
-        -- Define comandos com base no estado atual
         case estado_atual is
             when IDLE =>
                 comando_motor_s <= "00";
@@ -345,33 +377,32 @@ begin
                 comando_motor_s <= "00";
                 comando_porta_s <= '0';
             when MOVENDO =>
-                comando_motor_s <= direcao_atual; -- Envia comando SUBIR ou DESCER
+                comando_motor_s <= direcao_atual;
                 comando_porta_s <= '0';
             when FREANDO_MOTOR =>
-                comando_motor_s <= "00"; -- Envia comando PARAR
+                comando_motor_s <= "00";
                 comando_porta_s <= '0';
             when ABRINDO_PORTA =>
                 comando_motor_s <= "00";
-                comando_porta_s <= '1';  -- Envia comando ABRIR
-            when PORTA_ABERTA =>
-                comando_motor_s <= "00";
-                comando_porta_s <= '1';  -- Mantém comando ABRIR
+                comando_porta_s <= '1';
             when FECHANDO_PORTA =>
                 comando_motor_s <= "00";
-                comando_porta_s <= '0';  -- Envia comando FECHAR
+                comando_porta_s <= '0';
+            when PORTA_ABERTA =>
+                comando_motor_s <= "00";
+                comando_porta_s <= '1';
             when others =>
                 comando_motor_s <= "00";
                 comando_porta_s <= '0';
         end case;
 
-        -- Saídas de Status Externas
-        andar_atual  <= sensor_andar_atual;      -- Volta o andar lido do sensor externo
-        estado_porta <= sinal_porta_interna;     -- Diz o estado da porta lido
-        estado_motor <= direcao_atual;           -- Diz o movimento da fsm
+        andar_atual  <= sensor_andar_atual;
+        estado_porta <= sinal_porta_interna;
+        estado_motor <= direcao_atual;
 
     end process;
+    
     comando_motor <= comando_motor_s;
     comando_porta <= comando_porta_s;
-
 
 end architecture Behavioral;
