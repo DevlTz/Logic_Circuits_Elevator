@@ -1,0 +1,249 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\title{Relatório do Sistema de Elevadores em VHDL}
+\author{Luisa Ferreira }
+\date{October 2025}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    {\Large \textbf{Universidade Federal do Rio Grande do Norte}}\\[0.5cm]
+    {\large Centro de Ciências Exatas e da Terra}\\[0.3cm]
+    {\large Bacharelado em Ciência da Computação}\\[0.3cm]
+    {\large DIM0128 - Circuitos Lógicos}\\[5cm]
+
+    {\Huge \textbf{Relatório do Sistema de Elevadores em VHDL}}\\[0.7cm]
+
+    {\large \textbf{Autores:} Luisa Ferreira de Souza Santos, Cícero Paulino de OLiveira Filho, Kauã do Vale Ferreira e Ryan David dos Santos Silvestre}\\[0.3cm]
+    {\large \textbf{Professor:} Márcio Eduardo Kreutz}\\[3.5cm]
+
+    {\large Natal – RN}\\[0.3cm]
+    {\large Outubro de 2025}
+\end{titlepage}
+
+\thispagestyle{empty}
+
+\section{Resumo e Objetivos}
+
+O objetivo deste projeto é projetar e implementar em VHDL um sistema para controlar três elevadores em um edifício de 32 andares (0 a 31). O sistema é dividido em dois níveis hierárquicos, conforme especificado:
+
+\begin{enumerate}
+    \item \textbf{Nível 1 (Controlador Local):} Um controlador individual para cada elevador, responsável por gerenciar as operações físicas como acionar o motor, controlar a abertura e fechamento das portas e registrar o andar atual.
+    \item \textbf{Nível 2 (Escalonador / Pai):} Um supervisor global que gerencia todas as chamadas externas (botões de subir/descer dos andares), decide qual dos três elevadores deve atender a cada requisição e envia os comandos para os controladores locais.
+\end{enumerate}
+
+O projeto faz uso de Máquinas de Estados Finitos (FSMs) para o controle dos componentes, que serão validadas através de simulação com \textit{testbenches} em VHDL.
+
+\section{Arquitetura Geral (Diagrama de Blocos)}
+
+A arquitetura do sistema segue o modelo Controlador de dois níveis exigido. O diagrama de blocos abaixo ilustra a conexão dos módulos principais:
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=1.1\textwidth]{diagrama2710.png}
+    \caption{Diagrama de blocos do sistema de controle de três elevadores.}
+    \label{fig:diagrama2710}
+\end{figure}
+
+A arquitetura é composta por:
+
+\begin{itemize}
+    \item \textbf{1x Módulo Escalonador (Supervisor):}
+    \begin{itemize}
+        \item \textbf{Função:} Supervisiona todas as chamadas externas dos três elevadores, decidindo qual elevador atenderá cada requisição com base no algoritmo de escalonamento (descrito na Seção~\ref{sec:escalonamento}).
+        \item \textbf{Lógica:} Implementa a lógica de seleção de elevador e envia comandos para os controladores locais. Também monitora os estados atuais de cada elevador (andar, direção e estado da porta).
+       
+    \end{itemize}
+
+    \item \textbf{3x Módulos Controladores Locais (Elevador):}
+    \begin{itemize}
+        \item \textbf{Função:}  Coordena a operação de cada elevador, integrando os módulos de motor e porta. Recebe chamadas internas do elevador e requisições do escalonador, interpreta os sinais dos sensores e emite comandos apropriados para motor e a porta.
+        \item \textbf{Lógica:} Estruturado como uma FSM principal para gerenciar os estados do elevador: \texttt{IDLE} (ocioso), \texttt{MOVENDO}, \texttt{ABRINDO\_PORTA}, \texttt{PORTA\_ABERTA} e \texttt{FECHANDO\_PORTA}.
+      
+    \end{itemize}
+
+    \item \textbf{3x Módulos de Componentes (Motor, Porta):}
+    \begin{itemize}
+        \item \textbf{Funções:} São os “músculos” (componentes “burros”) que obedecem aos comandos dos Controladores Locais. O motor contorla a movimentação do elevador,  enquanto a porta gerencia a abertura e o fechamento.
+        \item \textbf{Lógica:}         \begin{itemize}
+            \item \textbf{Motor:} Possui FSM interna para operação segura com estados como \texttt{PARADO}, \texttt{SUBINDO}, \texttt{DESCENDO} e \texttt{FREANDO}.
+            \item \textbf{Porta:} Controlada por lógica sequencial baseada em contadores e condicionais, garantindo abertura e fechamento seguros e temporizados.
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+\section{Interface de Sinais Usadas}
+
+\subsection{Top-Level} Interface de sinais planejada para o módulo \texttt{top-level} (que conectará todos os blocos) é baseada nos arquivos \texttt{.vhd} existentes:
+
+\subsubsection*{Entradas Globais (do Testbench)}
+\begin{itemize}
+    \item \texttt{clk}, \texttt{rst}: Clock global e reset.
+    \item \texttt{chamadas\_externas\_subir [0..30]}: Botões de subida dos andares.
+    \item \texttt{chamadas\_externas\_descer [1..31]}: Botões de descida dos andares.
+    \item \texttt{chamadas\_internas\_E1, E2, E3 [0..31]}: Painéis internos de cada elevador.
+    \item \texttt{sensor\_andar\_E1, E2, E3 [0..31]}: Sensores de posição (simulados).
+\end{itemize}
+
+\subsubsection*{Saídas Globais (para Displays/Testbench)}
+\begin{itemize}
+    \item \texttt{display\_andar\_E1, E2, E3}: Indicador de andar atual.
+    \item \texttt{display\_porta\_E1, E2, E3}: Indicador de porta (aberta ou fechada).
+    \item \texttt{display\_direcao\_E1, E2, E3}: Indicador de movimento (subindo ou descendo).
+\end{itemize}
+
+\subsubsection*{Sinais Internos Chave (Entre Módulos)}
+\begin{itemize}
+    \item \texttt{req\_do\_escal\_E*}: Saída do Escalonador para a entrada do Controlador Local.
+    \item \texttt{cmd\_motor\_E*}: Saída do Controlador Local para a entrada \texttt{comando} do Motor.
+    \item \texttt{cmd\_porta\_E*}: Saída do Controlador Local para a entrada \texttt{abre} da Porta.
+    \item \texttt{sensor\_mov\_E*}: Saída \texttt{em\_movimento} do Motor, ligada de volta ao Controlador Local.
+    \item \texttt{sensor\_porta\_E*}: Saída \texttt{porta\_aberta} da Porta, ligada de volta ao Controlador Local (e ao Motor para segurança).
+\end{itemize}
+
+\subsection{Escalonador}
+\subsubsection*{Entradas Globais}
+\begin{itemize}
+    \item \texttt{clk}, \texttt{rst}: Clock global e reset. \\
+    \item \texttt{pos\_elevador\_1}: Posição do elevador 1.
+    \item \texttt{pos\_elevador\_2}: Posição do elevador 2.
+    \item \texttt{pos\_elevador\_3}: Posição do elevador 3.\\
+    \item \texttt{estado\_elevador\_1}: Estado do elevador 1.
+    \item \texttt{estado\_elevador\_2}: Estado do elevador 2.
+    \item \texttt{estado\_elevador\_3}: Estado do elevador 3.\\
+    \item \texttt{requisicoes\_externas\_elevador\_1}: Requisições externas do elevador 1.
+    \item \texttt{requisicoes\_externas\_elevador\_2}: Requisições externas do elevador 2.
+    \item \texttt{requisicoes\_externas\_elevador\_3}: Requisições externas do elevador 3.
+\end{itemize}
+
+\subsubsection*{Saídas Globais}
+\begin{itemize}
+    \item \texttt{requisicao\_andar\_elevador\_1}: qual andar o elevador 1 deve ir.
+    \item \texttt{requisicao\_andar\_elevador\_2}: qual andar o elevador 2 deve ir.
+    \item \texttt{requisicao\_andar\_elevador\_3}: qual andar o elevador 3 deve ir.
+\end{itemize}
+
+\subsection{Elevador}
+\subsubsection*{Entradas Globais}
+\begin{itemize}
+    \item \texttt{clk}, \texttt{rst}: Clock global e reset. \\
+    \item \texttt{requisicoes\_escalonador}: Chamadas do escalonador.
+    \item \texttt{requisicoes\_internas}: Chamas internas dos botões da cabine.\\
+    \item \texttt{sensor\_andar\_atual}: Andar atual do elevador.
+    \item \texttt{sensor\_porta\_aberta}: Estado da porta (aberta ou fechada).
+    \item \texttt{sensor\_movimento}: Estado do motor (parado, subindo ou descendo).
+
+\end{itemize}
+
+\subsubsection*{Saídas Globais}
+\begin{itemize}
+    \item \texttt{comando\_motor}: Estado do elevador 3.
+    \item \texttt{comando\_porta}: Requisições externas do elevador 1.
+\end{itemize}
+
+\subsubsection*{Sinais Internos (Saída)}
+\begin{itemize}
+    \item \texttt{andar\_atual}: Andar atual do elevador.
+    \item \texttt{estado\_motor}: Estado do motor (parado, subindo ou descendo).
+    \item \texttt{estado\_porta}: Estado da porta (aberta ou fechada).
+\end{itemize}
+
+\subsection{Motor}
+\subsubsection*{Entradas Globais}
+\begin{itemize}
+    \item \texttt{clk}, \texttt{rst}: Clock global e reset. \\
+    \item \texttt{comando}: Comando para a movimentação do elevador (parar, subir ou descer).
+    \item \texttt{porta}: Estado atual da porta (aberta ou fechada)
+\end{itemize}
+
+\subsubsection*{Saídas Globais}
+\begin{itemize}
+       \item \texttt{em\_movimento}: Indicação se o motor está em movimento.
+    \item \texttt{direcao}: Direção para qual o motor está se movendo.
+    \item \texttt{freio}: Indicação se o freio está em sendo utilizado.
+\end{itemize}
+
+\subsection{Porta}
+\subsubsection*{Entradas Globais}
+\begin{itemize}
+    \item \texttt{clk}, \texttt{rst}: Clock global e reset. \\
+    \item \texttt{comando}: Comando para a movimentação da porta (abrir ou fechar).
+    \item \texttt{motor\_mov}: Estado atual do motor (em movimento ou parado)
+\end{itemize}
+
+\subsubsection*{Saídas Globais}
+\begin{itemize}
+       \item \texttt{porta\_aberta}: Estado atual da porta (aberta ou fechada).
+
+\end{itemize}
+
+\section{Estratégia de Escalonamento}
+\label{sec:escalonamento}
+
+O método de \textit{Scan} consiste em percorrer todos os andares a partir de um sentido inicial, seja para cima ou baixo, mudando o sentido apenas ao chegar ao térreo, cobertura ou ao andar mais alto. Esse método \textit{"escaneia"} todos os andares de modo que ele para apenas no andar em que foi solicitado a parada para subir ou descer do elevador.
+
+\section{Parâmetros Adotados}
+
+\begin{itemize}
+    \item Número de andares: 32 (0 a 31)
+    \item Timer da porta: 250.000.000 ciclos de clock (se o clock for de 50MHz = 5 segundos)
+    \item Outros parâmetros: tempos de abertura/fechamento de porta, tempo de deslocamento entre andares, etc.
+\end{itemize}
+
+\section{Exemplos de Simulação}
+
+Deverão ser incluídos pelo menos três cenários com capturas de forma de onda e explicação passo a passo, por exemplo:
+
+\begin{itemize}
+    \item Chamadas simultâneas em andares diferentes.
+    \item Conflito de chamadas no mesmo andar.
+    \item Teste de segurança da porta durante movimento.
+\end{itemize}
+
+\section{Problemas e Decisões de Projeto}
+
+%% De início tivemos três opções de método de escalonamento, ambos visando características que beneficiariam o projeto...
+
+De início tivemos três opções de método de escalonamento, ambos visando características que beneficiariam o projeto, tais características seriam: simplicidade, otimização para aspectos específicos e eficiência.
+
+%% Scan e variante
+\subsection{Scan}
+O método de \textit{Scan} consiste em percorrer todos os andares a partir de um sentido inicial, seja para cima ou baixo, mudando o sentido apenas ao chegar ao térreo ou cobertura. Esse método \textit{"escaneia"} todos os andares de modo que ele para apenas no andar em que foi solicitado a parada para subir ou descer do elevador.
+
+Observamos também outras duas possibilidades de implementar o \textit{Scan}. A primeira consistia em limitar os pontos de troca de sentido a chamada mais alta ou mais baixa ao invés das extremidades do prédio. A segunda trava do posicionamento inicial dos elevadores: o \textit{elevador 0} teria posição inicial no térreo, o \textit{elevador 1} ficaria no andar 15 (centro do prédio de 32 andares) e o \textit{elevador 2} ficaria na cobertura. Nesse sentido os elevadores seguiriam a mesma lógica do \textit{Scan} básico, no entanto o elevador \textit{1} pegaria o \textit{overflow} dos elavadores adjacentes, de modo que seria um elevador para tratamento de sobrecarga.
+
+%% Escalonador por de proximidade e precedência
+\subsection{Precedência e proximidade}
+Essa abordagem analisa o estado atual de cada um dos três elevadores (andar, direção, ocupado/pronto) e decide qual elevador é o mais adequado analisando o custo, proximidade e direção para assim atender a uma nova solicitação. Após a decisão, ele envia as ordens específicas para o \textit{Controller Local} do elevador selecionado, que executa a sequência de operações para completar a viagem
+
+\subsection{Vantagens e desvantagens}
+A abordagem do \textit{Scan} facilita a implementação do escalonador por possuir uma estratégia mais \textit{lazy} para lidar com o problema. No entanto essa estratégia também possui um custo que se dá na eficiência (velocidade e tempo de espera) de atendimento de requisições. Para diminuir esses custos, a adição de estratégias de posicionamento e cálculos de distância, mostraram-se relativamente benéficos.
+
+No entanto, a maior eficiência se encontra na abordagem onde a eurística é mais fortemente empregada. No caso da abordagem de proximidade e precedência o gerenciamento é feito de uma forma mais rebuscada, priorizando tempo de espera e velocidade. Porém a complexidade do circuito, principalmente na implementação estrutural, dificulta a implantação do mesmo.
+
+
+\section{Instruções para Reproduzir as Simulações}
+
+O projeto é rodado utilizando o guia fornecido em aula, com GHDL e GTK Wave.
+
+\begin{itemize}
+    \item Analisar arquivos:
+    \texttt{ghdl -a <seu\_projeto>.vhdl <seu\_testbench>.vhdl}
+    
+    \item Elaborar testbench:
+    \texttt{ghdl -e <seu\_testbench>}
+    
+    \item Rodar simulação e gerar arquivo de onda:
+    \texttt{ghdl -r <seu\_testbench> --vcd=wave.vcd}
+    
+    \item Visualização no GTK Wave:
+    \texttt{gtkwave wave.vcd}
+\end{itemize}
+
+
+
+\end{document}
+
+
