@@ -15,7 +15,9 @@
 Este repositório contém o projeto de um sistema para controle de **três elevadores** em um edifício de **32 andares (0 a 31)**, implementado na linguagem **VHDL**. O sistema utiliza uma arquitetura hierárquica de dois níveis com Máquinas de Estados Finitos (FSMs) para gerenciamento.
 
 **Autores:** Luisa Ferreira de Souza Santos, Cícero Paulino de OLiveira Filho, Kauã do Vale Ferreira, Ryan David dos Santos Silvestre
+
 **Professor:** Márcio Eduardo Kreutz
+
 **Data:** Outubro de 2025
 
 ---
