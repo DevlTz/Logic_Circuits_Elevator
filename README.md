@@ -37,7 +37,7 @@ Todo o projeto é validado através de simulação com *testbenches* em VHDL.
 
 A arquitetura segue o modelo de controle de dois níveis.
 
-![Diagrama de blocos do sistema de controle de três elevadores.](diagrama2710.png)
+![Diagrama de blocos do sistema de controle de três elevadores.](docs/diagramas_projeto/diagrama2710.png)
 
 ### Módulos Principais
 
@@ -105,11 +105,3 @@ chmod u+x testbench.sh
 ./testbench.sh
 
 ```
-
-##  Exemplos de Simulação (Para Inclusão Futura)
-
-O relatório final deverá incluir capturas de tela das formas de onda e a explicação detalhada de pelo menos três cenários:
-
-* Chamadas simultâneas em andares diferentes.
-* Conflito de chamadas no mesmo andar.
-* Teste de segurança da porta durante o movimento do elevador.
