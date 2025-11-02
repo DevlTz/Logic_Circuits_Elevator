@@ -7,7 +7,7 @@ VCD_DIR="./vcd"
 mkdir -p $VCD_DIR
 
 # Stop time padrão
-STOP_TIME="10us"
+STOP_TIME="1200us"
 
 echo "=== Escolha o que deseja simular ==="
 echo "1) Componentes (Motor e Porta)"

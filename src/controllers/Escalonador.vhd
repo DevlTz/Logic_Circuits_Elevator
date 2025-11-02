@@ -51,7 +51,6 @@ architecture Behavioral of Escalonador is
         variable idx_sub, idx_des : integer := 0;
         variable prox_andar : integer := pos_elevador;
         variable temp : integer;
-        variable i, j : integer;
         variable dist_subida, dist_descida : integer;
 
     begin
@@ -75,8 +74,8 @@ architecture Behavioral of Escalonador is
          
         -- Se não há requisições, mantém no andar atual
         if idx_sub = 0 and idx_des = 0 then
-            report "Escalonador E" & integer'image(elevador_id) & 
-                   ": Sem requisicoes, mantendo em " & integer'image(pos_elevador);
+          --  report "Escalonador E" & integer'image(elevador_id) & 
+            --       ": Sem requisicoes, mantendo em " & integer'image(pos_elevador);
             return pos_elevador;
         end if;
         

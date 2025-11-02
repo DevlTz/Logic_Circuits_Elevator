@@ -45,7 +45,7 @@ architecture Behavioral of Elevador is
     signal contador_porta         : integer range 0 to TEMPO_PORTA_ABERTA := 0;
     signal fila_interna_reg       : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
     signal fila_escalonador_reg   : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
-    signal andar_real : integer range 0 to NUM_ANDARES-1 := 0;
+
     
     type T_ESTADO is (
         IDLE,
@@ -140,16 +140,17 @@ begin
     -- ===============================
     -- LÓGICA DE SELEÇÃO DO PRÓXIMO ANDAR (ALGORITMO SCAN)
     -- ===============================
-    process(requisicoes_totais, direcao_atual, sensor_andar_atual)
-        variable proximo_temp : integer := sensor_andar_atual;
+    process(requisicoes_totais, direcao_atual, sensor_andar_atual)        
+        variable proximo_temp : integer := 0;
         variable achou_alvo   : boolean := false;
         variable distancia_min : integer := NUM_ANDARES;
     begin
+        proximo_temp := sensor_andar_atual;        
         achou_alvo := false;
 
         -- Se está subindo, procura próxima requisição ACIMA
         if direcao_atual = "01" then
-        for i in andar_real + 1 to NUM_ANDARES-1 loop
+        for i in sensor_andar_atual + 1 to NUM_ANDARES-1 loop
             if requisicoes_totais(i) = '1' then
                 proximo_temp := i;
                 achou_alvo := true;
@@ -159,7 +160,7 @@ begin
         end loop;
         -- Se está descendo, procura próxima requisição ABAIXO
         elsif direcao_atual = "10" then
-            for i in andar_real - 1 downto 0 loop
+            for i in sensor_andar_atual - 1 downto 0 loop
                 if requisicoes_totais(i) = '1' then
                     proximo_temp := i;
                     achou_alvo := true;
@@ -172,11 +173,11 @@ begin
         -- Se não achou no sentido atual (ou está parado), procura o mais próximo
         if not achou_alvo then
             distancia_min := NUM_ANDARES;
-            proximo_temp := andar_real;
+            proximo_temp := sensor_andar_atual;
             for i in 0 to NUM_ANDARES-1 loop
                 if requisicoes_totais(i) = '1' then
-                    if abs(i - andar_real) < distancia_min then
-                        distancia_min := abs(i - andar_real);
+                    if abs(i - sensor_andar_atual) < distancia_min then
+                        distancia_min := abs(i - sensor_andar_atual);
                         proximo_temp := i;
                         achou_alvo := true;
                     end if;
@@ -401,7 +402,7 @@ begin
                 comando_porta_s <= '0';
         end case;
 
-        andar_atual  <= andar_real;
+       andar_atual  <= sensor_andar_atual;
         estado_porta <= sinal_porta_interna;
         -- estado_motor e em_movimento serão conectados por atribuições concorrentes (abaixo)
 
