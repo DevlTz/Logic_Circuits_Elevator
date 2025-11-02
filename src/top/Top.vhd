@@ -183,85 +183,91 @@ begin
             
         elsif rising_edge(clk) then
             
-            -- DEBUG: Reporta estado dos sinais de movimento
-            if em_movimento_1_s = '1' then
-                report "[DEBUG] E1: em_movimento=1, estado_motor=" & 
-                       integer'image(to_integer(unsigned(estado_motor_1_s))) &
-                       ", contador=" & integer'image(contador_movimento_1);
-            end if;
-            
+            -- ============================
             -- ELEVADOR 1: Simula movimento físico
-            -- Usa APENAS estado_motor (que já vem sincronizado do Motor via Elevador)
+            -- ============================
             if estado_motor_1_s = "01" then  -- Subindo
-                if contador_movimento_1 < TEMPO_ENTRE_ANDARES then
-                    contador_movimento_1 <= contador_movimento_1 + 1;
-                else
+                if contador_movimento_1 >= TEMPO_ENTRE_ANDARES-1 then
+                    -- Chegou no próximo andar
                     if sensor_andar_1_s < NUM_ANDARES-1 then
                         sensor_andar_1_s <= sensor_andar_1_s + 1;
                         report "[FISICA] Elevador 1 subiu para andar " & integer'image(sensor_andar_1_s + 1);
                     end if;
                     contador_movimento_1 <= 0;
-                end if;
-            elsif estado_motor_1_s = "10" then  -- Descendo
-                if contador_movimento_1 < TEMPO_ENTRE_ANDARES then
-                    contador_movimento_1 <= contador_movimento_1 + 1;
                 else
+                    contador_movimento_1 <= contador_movimento_1 + 1;
+                end if;
+                
+            elsif estado_motor_1_s = "10" then  -- Descendo
+                if contador_movimento_1 >= TEMPO_ENTRE_ANDARES-1 then
+                    -- Chegou no próximo andar
                     if sensor_andar_1_s > 0 then
                         sensor_andar_1_s <= sensor_andar_1_s - 1;
                         report "[FISICA] Elevador 1 desceu para andar " & integer'image(sensor_andar_1_s - 1);
                     end if;
                     contador_movimento_1 <= 0;
+                else
+                    contador_movimento_1 <= contador_movimento_1 + 1;
                 end if;
+                
             else  -- Parado (estado_motor = "00")
                 contador_movimento_1 <= 0;
             end if;
             
+            -- ============================
             -- ELEVADOR 2: Simula movimento físico
-            if em_movimento_2_s = '1' and estado_motor_2_s = "01" then  -- Subindo E motor girando
-                if contador_movimento_2 < TEMPO_ENTRE_ANDARES then
-                    contador_movimento_2 <= contador_movimento_2 + 1;
-                else
+            -- ============================
+            if estado_motor_2_s = "01" then  -- Subindo
+                if contador_movimento_2 >= TEMPO_ENTRE_ANDARES-1 then
                     if sensor_andar_2_s < NUM_ANDARES-1 then
                         sensor_andar_2_s <= sensor_andar_2_s + 1;
                         report "[FISICA] Elevador 2 subiu para andar " & integer'image(sensor_andar_2_s + 1);
                     end if;
                     contador_movimento_2 <= 0;
-                end if;
-            elsif em_movimento_2_s = '1' and estado_motor_2_s = "10" then  -- Descendo E motor girando
-                if contador_movimento_2 < TEMPO_ENTRE_ANDARES then
-                    contador_movimento_2 <= contador_movimento_2 + 1;
                 else
+                    contador_movimento_2 <= contador_movimento_2 + 1;
+                end if;
+                
+            elsif estado_motor_2_s = "10" then  -- Descendo
+                if contador_movimento_2 >= TEMPO_ENTRE_ANDARES-1 then
                     if sensor_andar_2_s > 0 then
                         sensor_andar_2_s <= sensor_andar_2_s - 1;
                         report "[FISICA] Elevador 2 desceu para andar " & integer'image(sensor_andar_2_s - 1);
                     end if;
                     contador_movimento_2 <= 0;
+                else
+                    contador_movimento_2 <= contador_movimento_2 + 1;
                 end if;
+                
             else  -- Parado
                 contador_movimento_2 <= 0;
             end if;
             
+            -- ============================
             -- ELEVADOR 3: Simula movimento físico
-            if em_movimento_3_s = '1' and estado_motor_3_s = "01" then  -- Subindo E motor girando
-                if contador_movimento_3 < TEMPO_ENTRE_ANDARES then
-                    contador_movimento_3 <= contador_movimento_3 + 1;
-                else
+            -- ============================
+            if estado_motor_3_s = "01" then  -- Subindo
+                if contador_movimento_3 >= TEMPO_ENTRE_ANDARES-1 then
                     if sensor_andar_3_s < NUM_ANDARES-1 then
                         sensor_andar_3_s <= sensor_andar_3_s + 1;
                         report "[FISICA] Elevador 3 subiu para andar " & integer'image(sensor_andar_3_s + 1);
                     end if;
                     contador_movimento_3 <= 0;
-                end if;
-            elsif em_movimento_3_s = '1' and estado_motor_3_s = "10" then  -- Descendo E motor girando
-                if contador_movimento_3 < TEMPO_ENTRE_ANDARES then
-                    contador_movimento_3 <= contador_movimento_3 + 1;
                 else
+                    contador_movimento_3 <= contador_movimento_3 + 1;
+                end if;
+                
+            elsif estado_motor_3_s = "10" then  -- Descendo
+                if contador_movimento_3 >= TEMPO_ENTRE_ANDARES-1 then
                     if sensor_andar_3_s > 0 then
                         sensor_andar_3_s <= sensor_andar_3_s - 1;
                         report "[FISICA] Elevador 3 desceu para andar " & integer'image(sensor_andar_3_s - 1);
                     end if;
                     contador_movimento_3 <= 0;
+                else
+                    contador_movimento_3 <= contador_movimento_3 + 1;
                 end if;
+                
             else  -- Parado
                 contador_movimento_3 <= 0;
             end if;

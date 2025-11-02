@@ -8,8 +8,8 @@ end entity;
 architecture sim of tb_top is
     constant CLK_PERIOD : time := 10 ns;
     constant NUM_ANDARES : integer := 32;
-    constant TEMPO_PORTA_ABERTA : integer := 10000;  -- 100 us
-    constant TEMPO_ENTRE_ANDARES : integer := 1000;  -- 10 us por andar
+    constant TEMPO_PORTA_ABERTA : integer := 50;  -- REDUZIDO para testar mais rápido
+    constant TEMPO_ENTRE_ANDARES : integer := 100;  -- REDUZIDO para testar mais rápido
 
     -- Sinais de clock e reset
     signal clk, rst : std_logic := '0';
@@ -95,201 +95,192 @@ begin
     -- Casos de teste
     ---------------------------------------------------------------------
     stimulus : process
-        -- Procedure para esperar o elevador chegar ao destino
+
+        -- Procedure CORRIGIDA: Espera elevador chegar ao destino
         procedure espera_elevador_chegar(
             signal pos : in integer;
+            signal pronto : in std_logic;
             constant destino : integer;
             constant elevador_id : integer;
-            constant timeout : time := 200 us
+            constant timeout : time := 1 ms
         ) is
-            variable tempo_inicio : time;
+            variable tempo_passado : time := 0 ns;
         begin
-            tempo_inicio := now;
             report "[TB] Esperando Elevador " & integer'image(elevador_id) & 
                    " chegar ao andar " & integer'image(destino);
-            
-            while pos /= destino loop
+
+            -- Espera o elevador chegar E ficar pronto
+            while pos /= destino or pronto /= '1' loop
                 wait for CLK_PERIOD;
-                if (now - tempo_inicio) > timeout then
+                tempo_passado := tempo_passado + CLK_PERIOD;
+                
+                if tempo_passado > timeout then
                     report "[TB] TIMEOUT! Elevador " & integer'image(elevador_id) & 
-                           " nao chegou ao andar " & integer'image(destino) severity error;
+                           " nao chegou ao andar " & integer'image(destino) & 
+                           " (pos atual = " & integer'image(pos) & 
+                           ", pronto = " & std_logic'image(pronto) & ")" 
+                           severity error;
                     exit;
                 end if;
             end loop;
-            
-            report "[TB] Elevador " & integer'image(elevador_id) & 
-                   " CHEGOU ao andar " & integer'image(pos);
+
+            if pos = destino and pronto = '1' then
+                report "[TB] Elevador " & integer'image(elevador_id) & 
+                       " CHEGOU ao andar " & integer'image(destino) & " e esta PRONTO";
+            end if;
         end procedure;
-        
+
+        -- Procedure para limpar todas as requisições
+        procedure limpar_requisicoes is
+        begin
+            tb_req_ext_1 <= (others => '0');
+            tb_req_ext_2 <= (others => '0');
+            tb_req_ext_3 <= (others => '0');
+            wait for 10 * CLK_PERIOD;
+        end procedure;
+
     begin
         wait for 200 ns;
-        report "========================================";
         report "=== INICIO DA SIMULACAO TOP-LEVEL ===";
-        report "========================================";
         wait for 100 ns;
 
-        -------------------------------------------------------------------
-        -- CASO 1: Requisição simples - Elevador 1 vai ao andar 5
-        -------------------------------------------------------------------
+        -- CASO 1: Requisição simples E1 -> andar 5
         report "========================================";
         report "CASO 1: Requisicao E1 -> andar 5";
         report "========================================";
         tb_req_ext_1(5) <= '1';
-        wait for 1 us;  -- Tempo para sistema processar
-        
-        -- Espera o elevador chegar
-        espera_elevador_chegar(tb_pos_elevador_1, 5, 1, 200 us);
-        
-        -- Espera a porta abrir/fechar (TEMPO_PORTA_ABERTA + margem)
-        wait for 120 us;
-        
-        -- Remove requisição
-        tb_req_ext_1(5) <= '0';
-        wait for 2 us;
-        
-        report "[TB] CASO 1 concluido - E1 final no andar " & integer'image(tb_pos_elevador_1);
-        wait for 10 us;
+        wait for 50 * CLK_PERIOD;  -- Tempo para o sistema processar
+        espera_elevador_chegar(tb_pos_elevador_1, tb_elevador_pronto_1, 5, 1, 500 us);
+        limpar_requisicoes;
+        wait for 50 * CLK_PERIOD;
 
-        -------------------------------------------------------------------
-        -- CASO 2: Requisições simultâneas para todos elevadores
-        -------------------------------------------------------------------
+        -- CASO 2: Requisições simultâneas
         report "========================================";
         report "CASO 2: Requisicoes simultaneas";
-        report "  E1 -> andar 3";
-        report "  E2 -> andar 7"; 
-        report "  E3 -> andar 2";
         report "========================================";
-        
         tb_req_ext_1(3) <= '1';
         tb_req_ext_2(7) <= '1';
         tb_req_ext_3(2) <= '1';
-        wait for 1 us;
+        wait for 50 * CLK_PERIOD;
         
-        -- Espera todos chegarem (em paralelo)
-        espera_elevador_chegar(tb_pos_elevador_1, 3, 1, 200 us);
-        espera_elevador_chegar(tb_pos_elevador_2, 7, 2, 200 us);
-        espera_elevador_chegar(tb_pos_elevador_3, 2, 3, 200 us);
+        espera_elevador_chegar(tb_pos_elevador_1, tb_elevador_pronto_1, 3, 1, 500 us);
+        espera_elevador_chegar(tb_pos_elevador_2, tb_elevador_pronto_2, 7, 2, 500 us);
+        espera_elevador_chegar(tb_pos_elevador_3, tb_elevador_pronto_3, 2, 3, 500 us);
         
-        wait for 120 us;  -- Tempo para portas
-        
-        tb_req_ext_1(3) <= '0';
-        tb_req_ext_2(7) <= '0';
-        tb_req_ext_3(2) <= '0';
-        wait for 2 us;
-        
-        report "[TB] CASO 2 concluido";
-        report "  E1 em: " & integer'image(tb_pos_elevador_1);
-        report "  E2 em: " & integer'image(tb_pos_elevador_2);
-        report "  E3 em: " & integer'image(tb_pos_elevador_3);
-        wait for 10 us;
+        limpar_requisicoes;
+        wait for 50 * CLK_PERIOD;
 
-        -------------------------------------------------------------------
-        -- CASO 3: Múltiplas requisições no mesmo elevador (algoritmo SCAN)
-        -------------------------------------------------------------------
+        -- CASO 3: Múltiplas requisições E1 (10 e 15)
         report "========================================";
-        report "CASO 3: Multiplas requisicoes E1";
-        report "  Requisicoes: andares 10 e 15";
+        report "CASO 3: Multiplas requisicoes E1 (10 e 15)";
         report "========================================";
-        
         tb_req_ext_1(10) <= '1';
         tb_req_ext_1(15) <= '1';
-        wait for 1 us;
+        wait for 50 * CLK_PERIOD;
         
-        -- Espera passar pelo primeiro andar (10)
-        espera_elevador_chegar(tb_pos_elevador_1, 10, 1, 300 us);
-        wait for 120 us;  -- Porta abre/fecha
+        -- Espera chegar no primeiro andar (mais próximo = 10)
+        espera_elevador_chegar(tb_pos_elevador_1, tb_elevador_pronto_1, 10, 1, 1 ms);
+        wait for 50 * CLK_PERIOD;
         
-        -- Espera chegar no segundo andar (15)
-        espera_elevador_chegar(tb_pos_elevador_1, 15, 1, 300 us);
-        wait for 120 us;  -- Porta abre/fecha
+        -- Espera chegar no segundo andar
+        espera_elevador_chegar(tb_pos_elevador_1, tb_elevador_pronto_1, 15, 1, 1 ms);
         
-        tb_req_ext_1(10) <= '0';
-        tb_req_ext_1(15) <= '0';
-        wait for 2 us;
-        
-        report "[TB] CASO 3 concluido - E1 em andar " & integer'image(tb_pos_elevador_1);
-        wait for 10 us;
+        limpar_requisicoes;
+        wait for 50 * CLK_PERIOD;
 
-        -------------------------------------------------------------------
-        -- CASO 4: Teste de descida
-        -------------------------------------------------------------------
+        -- CASO 4: Teste descida E2 -> andar 2
         report "========================================";
-        report "CASO 4: Teste de descida - E2";
-        report "  E2 em: " & integer'image(tb_pos_elevador_2) & " -> andar 2";
+        report "CASO 4: Teste descida E2 -> andar 2";
         report "========================================";
-        
         tb_req_ext_2(2) <= '1';
-        wait for 1 us;
-        
-        espera_elevador_chegar(tb_pos_elevador_2, 2, 2, 300 us);
-        wait for 120 us;
-        
-        tb_req_ext_2(2) <= '0';
-        wait for 2 us;
-        
-        report "[TB] CASO 4 concluido - E2 em andar " & integer'image(tb_pos_elevador_2);
-        wait for 10 us;
+        wait for 50 * CLK_PERIOD;
+        espera_elevador_chegar(tb_pos_elevador_2, tb_elevador_pronto_2, 2, 2, 1 ms);
+        limpar_requisicoes;
+        wait for 50 * CLK_PERIOD;
 
-        -------------------------------------------------------------------
-        -- CASO 5: Stress test - requisições rápidas e consecutivas
-        -------------------------------------------------------------------
+        -- CASO 5: Stress test E3 (5 -> 1 -> 8)
         report "========================================";
-        report "CASO 5: Stress test - E3";
-        report "  Requisicoes: 5 -> 1 -> 8";
+        report "CASO 5: Stress test E3 (5 -> 1 -> 8)";
         report "========================================";
         
+        -- Primeiro destino: andar 5
         tb_req_ext_3(5) <= '1';
-        wait for 1 us;
-        espera_elevador_chegar(tb_pos_elevador_3, 5, 3, 200 us);
-        wait for 120 us;
+        wait for 50 * CLK_PERIOD;
+        espera_elevador_chegar(tb_pos_elevador_3, tb_elevador_pronto_3, 5, 3, 500 us);
         tb_req_ext_3(5) <= '0';
-        
-        tb_req_ext_3(1) <= '1';
-        wait for 1 us;
-        espera_elevador_chegar(tb_pos_elevador_3, 1, 3, 200 us);
-        wait for 120 us;
-        tb_req_ext_3(1) <= '0';
-        
-        tb_req_ext_3(8) <= '1';
-        wait for 1 us;
-        espera_elevador_chegar(tb_pos_elevador_3, 8, 3, 300 us);
-        wait for 120 us;
-        tb_req_ext_3(8) <= '0';
-        
-        report "[TB] CASO 5 concluido - E3 em andar " & integer'image(tb_pos_elevador_3);
-        wait for 10 us;
+        wait for 50 * CLK_PERIOD;
 
-        -------------------------------------------------------------------
-        -- Resumo Final
-        -------------------------------------------------------------------
+        -- Segundo destino: andar 1
+        tb_req_ext_3(1) <= '1';
+        wait for 50 * CLK_PERIOD;
+        espera_elevador_chegar(tb_pos_elevador_3, tb_elevador_pronto_3, 1, 3, 1 ms);
+        tb_req_ext_3(1) <= '0';
+        wait for 50 * CLK_PERIOD;
+
+        -- Terceiro destino: andar 8
+        tb_req_ext_3(8) <= '1';
+        wait for 50 * CLK_PERIOD;
+        espera_elevador_chegar(tb_pos_elevador_3, tb_elevador_pronto_3, 8, 3, 1 ms);
+        tb_req_ext_3(8) <= '0';
+        wait for 50 * CLK_PERIOD;
+
+        -- Final
         report "========================================";
         report "=== SIMULACAO CONCLUIDA COM SUCESSO ===";
         report "========================================";
         report "Posicoes finais:";
-        report "  Elevador 1: andar " & integer'image(tb_pos_elevador_1);
-        report "  Elevador 2: andar " & integer'image(tb_pos_elevador_2);
-        report "  Elevador 3: andar " & integer'image(tb_pos_elevador_3);
-        report "========================================";
+        report "  E1: " & integer'image(tb_pos_elevador_1) & 
+               " (pronto=" & std_logic'image(tb_elevador_pronto_1) & ")";
+        report "  E2: " & integer'image(tb_pos_elevador_2) & 
+               " (pronto=" & std_logic'image(tb_elevador_pronto_2) & ")";
+        report "  E3: " & integer'image(tb_pos_elevador_3) & 
+               " (pronto=" & std_logic'image(tb_elevador_pronto_3) & ")";
         
         simulacao_terminada <= true;
         wait;
     end process;
 
     ---------------------------------------------------------------------
-    -- Processo de monitoramento contínuo (opcional)
+    -- Monitoramento detalhado
     ---------------------------------------------------------------------
     monitor : process(clk)
+        variable last_pos_1, last_pos_2, last_pos_3 : integer := -1;
+        variable last_pronto_1, last_pronto_2, last_pronto_3 : std_logic := '0';
     begin
         if rising_edge(clk) then
-            -- Detecta mudanças de andar
-            if tb_pos_elevador_1'event then
-                report "[MONITOR] E1 agora em andar " & integer'image(tb_pos_elevador_1);
+            -- Monitora mudanças de posição
+            if tb_pos_elevador_1 /= last_pos_1 then
+                report "[MONITOR] E1 moveu para andar " & integer'image(tb_pos_elevador_1) &
+                       " | Estado: " & integer'image(to_integer(unsigned(tb_estado_elevador_1)));
+                last_pos_1 := tb_pos_elevador_1;
             end if;
-            if tb_pos_elevador_2'event then
-                report "[MONITOR] E2 agora em andar " & integer'image(tb_pos_elevador_2);
+            
+            if tb_pos_elevador_2 /= last_pos_2 then
+                report "[MONITOR] E2 moveu para andar " & integer'image(tb_pos_elevador_2) &
+                       " | Estado: " & integer'image(to_integer(unsigned(tb_estado_elevador_2)));
+                last_pos_2 := tb_pos_elevador_2;
             end if;
-            if tb_pos_elevador_3'event then
-                report "[MONITOR] E3 agora em andar " & integer'image(tb_pos_elevador_3);
+            
+            if tb_pos_elevador_3 /= last_pos_3 then
+                report "[MONITOR] E3 moveu para andar " & integer'image(tb_pos_elevador_3) &
+                       " | Estado: " & integer'image(to_integer(unsigned(tb_estado_elevador_3)));
+                last_pos_3 := tb_pos_elevador_3;
+            end if;
+
+            -- Monitora mudanças no sinal 'pronto'
+            if tb_elevador_pronto_1 /= last_pronto_1 then
+                report "[MONITOR] E1 pronto mudou para " & std_logic'image(tb_elevador_pronto_1);
+                last_pronto_1 := tb_elevador_pronto_1;
+            end if;
+            
+            if tb_elevador_pronto_2 /= last_pronto_2 then
+                report "[MONITOR] E2 pronto mudou para " & std_logic'image(tb_elevador_pronto_2);
+                last_pronto_2 := tb_elevador_pronto_2;
+            end if;
+            
+            if tb_elevador_pronto_3 /= last_pronto_3 then
+                report "[MONITOR] E3 pronto mudou para " & std_logic'image(tb_elevador_pronto_3);
+                last_pronto_3 := tb_elevador_pronto_3;
             end if;
         end if;
     end process;
