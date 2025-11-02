@@ -29,6 +29,7 @@ entity Elevador is
         andar_atual               : out integer range 0 to NUM_ANDARES-1; 
         estado_motor              : out std_logic_vector(1 downto 0); 
         estado_porta              : out std_logic;
+        em_movimento              : out std_logic;  -- NOVO: indica se motor está girando
         
         -- Display de sete segmentos
         seg_MSD                   : out std_logic_vector(6 downto 0);
@@ -404,5 +405,6 @@ begin
     
     comando_motor <= comando_motor_s;
     comando_porta <= comando_porta_s;
+    em_movimento <= sinal_movimento_interno;  -- NOVO: expõe o sinal do Motor
 
 end architecture Behavioral;
