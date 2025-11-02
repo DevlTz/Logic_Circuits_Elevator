@@ -191,8 +191,8 @@ begin
             end if;
             
             -- ELEVADOR 1: Simula movimento físico
-            -- Verifica se está REALMENTE em movimento (sinal do Motor)
-            if em_movimento_1_s = '1' and estado_motor_1_s = "01" then  -- Subindo E motor girando
+            -- Usa APENAS estado_motor (que já vem sincronizado do Motor via Elevador)
+            if estado_motor_1_s = "01" then  -- Subindo
                 if contador_movimento_1 < TEMPO_ENTRE_ANDARES then
                     contador_movimento_1 <= contador_movimento_1 + 1;
                 else
@@ -202,7 +202,7 @@ begin
                     end if;
                     contador_movimento_1 <= 0;
                 end if;
-            elsif em_movimento_1_s = '1' and estado_motor_1_s = "10" then  -- Descendo E motor girando
+            elsif estado_motor_1_s = "10" then  -- Descendo
                 if contador_movimento_1 < TEMPO_ENTRE_ANDARES then
                     contador_movimento_1 <= contador_movimento_1 + 1;
                 else
@@ -212,7 +212,7 @@ begin
                     end if;
                     contador_movimento_1 <= 0;
                 end if;
-            else  -- Parado
+            else  -- Parado (estado_motor = "00")
                 contador_movimento_1 <= 0;
             end if;
             

@@ -29,7 +29,7 @@ entity Elevador is
         andar_atual               : out integer range 0 to NUM_ANDARES-1; 
         estado_motor              : out std_logic_vector(1 downto 0); 
         estado_porta              : out std_logic;
-        em_movimento              : out std_logic;  -- NOVO: indica se motor está girando
+        em_movimento              : out std_logic;
         
         -- Display de sete segmentos
         seg_MSD                   : out std_logic_vector(6 downto 0);
@@ -45,6 +45,9 @@ architecture Behavioral of Elevador is
     signal contador_porta         : integer range 0 to TEMPO_PORTA_ABERTA := 0;
     signal fila_interna_reg       : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
     signal fila_escalonador_reg   : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
+    
+    -- NOVO: Registrador de destino travado
+    signal destino_reg            : integer range 0 to NUM_ANDARES-1 := 0;
     
     type T_ESTADO is (
         IDLE,
@@ -137,11 +140,12 @@ begin
     -- LÓGICA DE SELEÇÃO DO PRÓXIMO ANDAR (ALGORITMO SCAN)
     -- ===============================
     process(requisicoes_totais, direcao_atual, sensor_andar_atual)
-        variable proximo_temp : integer := sensor_andar_atual;
+        variable proximo_temp : integer := 0;
         variable achou_alvo   : boolean := false;
         variable distancia_min : integer := NUM_ANDARES;
     begin
         achou_alvo := false;
+        proximo_temp := sensor_andar_atual;
 
         -- Se está subindo, procura próxima requisição ACIMA
         if direcao_atual = "01" then
@@ -168,7 +172,6 @@ begin
         -- Se não achou no sentido atual (ou está parado), procura o mais próximo
         if not achou_alvo then
             distancia_min := NUM_ANDARES;
-            proximo_temp := sensor_andar_atual;
             
             for i in 0 to NUM_ANDARES-1 loop
                 if requisicoes_totais(i) = '1' then
@@ -192,7 +195,7 @@ begin
     -- MÁQUINA DE ESTADOS - LÓGICA COMBINACIONAL
     -- ===============================
     process(estado_atual, requisicoes_totais, sensor_andar_atual, sinal_porta_interna, 
-            sinal_movimento_interno, proximo_andar, contador_porta)
+            sinal_movimento_interno, proximo_andar, contador_porta, destino_reg)
     begin
         proximo_estado <= estado_atual;
 
@@ -229,9 +232,10 @@ begin
                 end if;
 
             when MOVENDO =>
-                if sensor_andar_atual = proximo_andar then
+                -- USA destino_reg (TRAVADO) ao invés de proximo_andar!
+                if sensor_andar_atual = destino_reg then
                     proximo_estado <= FREANDO_MOTOR;
-                    report "FSM: MOVENDO -> FREANDO_MOTOR (chegou ao andar destino " & integer'image(proximo_andar) & ")";
+                    report "FSM: MOVENDO -> FREANDO_MOTOR (chegou ao andar destino " & integer'image(destino_reg) & ")";
                 elsif requisicoes_totais(sensor_andar_atual) = '1' then
                     proximo_estado <= FREANDO_MOTOR;
                     report "FSM: MOVENDO -> FREANDO_MOTOR (parada intermediaria no andar " & integer'image(sensor_andar_atual) & ")";
@@ -293,6 +297,7 @@ begin
             fila_interna_reg <= (others => '0');
             fila_escalonador_reg <= (others => '0');
             elevador_pronto <= '0';
+            destino_reg <= 0;
             report "========== RESET ATIVADO ==========";
             
         elsif rising_edge(clk) then
@@ -332,16 +337,18 @@ begin
                 fila_escalonador_reg(sensor_andar_atual) <= '0';
             end if;
 
-            -- Atualiza direção quando começa a mover
+            -- TRAVA O DESTINO NO INÍCIO DO MOVIMENTO
             if (estado_atual = PREPARANDO_MOVIMENTO and proximo_estado = MOVENDO) then
+                destino_reg <= proximo_andar;  -- TRAVA O DESTINO AQUI!
+                
                 if proximo_andar > sensor_andar_atual then
                     direcao_atual <= "01";
                     report "Direcao definida: SUBINDO (andar atual: " & integer'image(sensor_andar_atual) & 
-                           " -> destino: " & integer'image(proximo_andar) & ")";
+                           " -> destino TRAVADO: " & integer'image(proximo_andar) & ")";
                 elsif proximo_andar < sensor_andar_atual then
                     direcao_atual <= "10";
                     report "Direcao definida: DESCENDO (andar atual: " & integer'image(sensor_andar_atual) & 
-                           " -> destino: " & integer'image(proximo_andar) & ")";
+                           " -> destino TRAVADO: " & integer'image(proximo_andar) & ")";
                 else
                     direcao_atual <= "00";
                     report "Direcao definida: PARADO";
@@ -365,10 +372,12 @@ begin
     -- ===============================
     -- LÓGICA DE SAÍDA PARA COMANDOS
     -- ===============================
-    process(estado_atual, direcao_atual, sensor_andar_atual, sinal_porta_interna)
+    process(estado_atual, direcao_atual, proximo_estado, proximo_andar, sensor_andar_atual)
+        variable comando_temp : std_logic_vector(1 downto 0);
     begin
         comando_motor_s <= "00";
         comando_porta_s <= '0';
+        comando_temp := "00";
 
         case estado_atual is
             when IDLE =>
@@ -396,15 +405,24 @@ begin
                 comando_motor_s <= "00";
                 comando_porta_s <= '0';
         end case;
-
-        andar_atual  <= sensor_andar_atual;
-        estado_porta <= sinal_porta_interna;
-        estado_motor <= direcao_atual;
-
+        
+        -- ANTECIPA o comando quando vai começar a mover (elimina latência)
+        if estado_atual = PREPARANDO_MOVIMENTO and proximo_estado = MOVENDO then
+            if proximo_andar > sensor_andar_atual then
+                comando_temp := "01";  -- Já prepara para subir
+            elsif proximo_andar < sensor_andar_atual then
+                comando_temp := "10";  -- Já prepara para descer
+            end if;
+            comando_motor_s <= comando_temp;
+        end if;
     end process;
     
+    -- Atribuições concorrentes
     comando_motor <= comando_motor_s;
     comando_porta <= comando_porta_s;
-    em_movimento <= sinal_movimento_interno;  -- NOVO: expõe o sinal do Motor
+    andar_atual  <= sensor_andar_atual;
+    estado_porta <= sinal_porta_interna;
+    estado_motor <= comando_motor_s;  -- Usa o comando (mais direto que esperar o Motor)
+    em_movimento <= sinal_movimento_interno;
 
 end architecture Behavioral;
