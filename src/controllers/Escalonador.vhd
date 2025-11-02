@@ -75,7 +75,7 @@ architecture Behavioral of Escalonador is
                         ordem_subida(j) := ordem_subida(j+1);
                         ordem_subida(j+1) := temp;
                     end if;
-                end loop;
+                end loop;   
             end loop;
         end if;
 
