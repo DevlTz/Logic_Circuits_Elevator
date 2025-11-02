@@ -29,6 +29,7 @@ entity Elevador is
         andar_atual               : out integer range 0 to NUM_ANDARES-1; 
         estado_motor              : out std_logic_vector(1 downto 0); 
         estado_porta              : out std_logic;
+        em_movimento              : out std_logic;  -- NOVO: indica se motor está girando
         
         -- Display de sete segmentos
         seg_MSD                   : out std_logic_vector(6 downto 0);
@@ -44,6 +45,7 @@ architecture Behavioral of Elevador is
     signal contador_porta         : integer range 0 to TEMPO_PORTA_ABERTA := 0;
     signal fila_interna_reg       : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
     signal fila_escalonador_reg   : std_logic_vector(NUM_ANDARES-1 downto 0) := (others => '0');
+
     
     type T_ESTADO is (
         IDLE,
@@ -96,6 +98,9 @@ architecture Behavioral of Elevador is
     
     signal comando_motor_s          : std_logic_vector(1 downto 0);
     signal comando_porta_s          : std_logic;
+    -- signal andar_real               : integer range 0 to NUM_ANDARES-1 := 0;
+
+    signal destino_reg : integer range 0 to NUM_ANDARES-1 := 0;
 
 begin
 
@@ -135,23 +140,24 @@ begin
     -- ===============================
     -- LÓGICA DE SELEÇÃO DO PRÓXIMO ANDAR (ALGORITMO SCAN)
     -- ===============================
-    process(requisicoes_totais, direcao_atual, sensor_andar_atual)
-        variable proximo_temp : integer := sensor_andar_atual;
+    process(requisicoes_totais, direcao_atual, sensor_andar_atual)        
+        variable proximo_temp : integer := 0;
         variable achou_alvo   : boolean := false;
         variable distancia_min : integer := NUM_ANDARES;
     begin
+        proximo_temp := sensor_andar_atual;        
         achou_alvo := false;
 
         -- Se está subindo, procura próxima requisição ACIMA
         if direcao_atual = "01" then
-            for i in sensor_andar_atual + 1 to NUM_ANDARES-1 loop
-                if requisicoes_totais(i) = '1' then
-                    proximo_temp := i;
-                    achou_alvo := true;
-                    report "SCAN: Subindo - Proximo andar: " & integer'image(i);
-                    exit;
-                end if;
-            end loop;
+        for i in sensor_andar_atual + 1 to NUM_ANDARES-1 loop
+            if requisicoes_totais(i) = '1' then
+                proximo_temp := i;
+                achou_alvo := true;
+                report "SCAN: Subindo - Proximo andar: " & integer'image(i);
+                exit;
+            end if;
+        end loop;
         -- Se está descendo, procura próxima requisição ABAIXO
         elsif direcao_atual = "10" then
             for i in sensor_andar_atual - 1 downto 0 loop
@@ -168,7 +174,6 @@ begin
         if not achou_alvo then
             distancia_min := NUM_ANDARES;
             proximo_temp := sensor_andar_atual;
-            
             for i in 0 to NUM_ANDARES-1 loop
                 if requisicoes_totais(i) = '1' then
                     if abs(i - sensor_andar_atual) < distancia_min then
@@ -364,7 +369,8 @@ begin
     -- ===============================
     -- LÓGICA DE SAÍDA PARA COMANDOS
     -- ===============================
-    process(estado_atual, direcao_atual, sensor_andar_atual, sinal_porta_interna)
+    process(estado_atual, direcao_atual, sensor_andar_atual, sinal_porta_interna,
+        sinal_direcao_motor, sinal_movimento_interno)
     begin
         comando_motor_s <= "00";
         comando_porta_s <= '0';
@@ -396,13 +402,15 @@ begin
                 comando_porta_s <= '0';
         end case;
 
-        andar_atual  <= sensor_andar_atual;
+       andar_atual  <= sensor_andar_atual;
         estado_porta <= sinal_porta_interna;
-        estado_motor <= direcao_atual;
+        -- estado_motor e em_movimento serão conectados por atribuições concorrentes (abaixo)
 
     end process;
     
     comando_motor <= comando_motor_s;
     comando_porta <= comando_porta_s;
+    estado_motor <= sinal_direcao_motor;  -- Exemplo simples de estado do motor
+    em_movimento <= sinal_movimento_interno;  -- NOVO: expõe o sinal do Motor
 
 end architecture Behavioral;
