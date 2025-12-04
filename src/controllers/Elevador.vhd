@@ -350,7 +350,7 @@ begin
                     direcao_atual <= "00";
                     report "Direcao definida: PARADO";
                 end if;
-            elsif proximo_estado = IDLE or proximo_estado = ABRINDO_PORTA then
+            elsif proximo_estado = IDLE then
                 direcao_atual <= "00";
             end if;
 
