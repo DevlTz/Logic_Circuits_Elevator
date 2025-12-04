@@ -1,0 +1,117 @@
+digraph SistemaElevador {
+    // Configurações Globais de Estilo
+    fontname="Helvetica,Arial,sans-serif";
+    node [fontname="Helvetica,Arial,sans-serif", style=filled, fillcolor="#f0f0f0", shape=Mrecord];
+    edge [fontname="Helvetica,Arial,sans-serif", fontsize=10];
+    rankdir=TB; // Top to Bottom
+    compound=true;
+    splines=ortho; // Linhas ortogonais (retas) ficam mais organizadas para FSMs digitais
+
+    // ---------------------------------------------------------
+    // 1. FSM DO ELEVADOR (PRINCIPAL)
+    // ---------------------------------------------------------
+    subgraph cluster_Elevador {
+        label = "1) FSM DO ELEVADOR (Principal)";
+        style=filled;
+        color=lightgrey;
+        node [fillcolor="white"];
+
+        // Estados
+        E_IDLE [label="IDLE\n(Esperando)", shape=doublecircle]; // Estado inicial
+        E_DECIDIR [label="DECIDIR_MOVIMENTO"];
+        E_SUBINDO [label="SUBINDO"];
+        E_DESCENDO [label="DESCENDO"];
+        E_FREANDO [label="FREANDO"];
+        E_PARADO [label="PARADO_NO_ANDAR"];
+        E_ABRINDO [label="ABRINDO_PORTA"];
+        E_ABERTA [label="PORTA_ABERTA"];
+        E_FECHANDO [label="FECHANDO_PORTA"];
+        E_EMERGENCIA [label="EMERGENCIA", fillcolor="#ffcccc"];
+
+        // Transições IDLE
+        E_IDLE -> E_FECHANDO [label="Chamada\n(Porta Aberta)"];
+        E_IDLE -> E_DECIDIR [label="Chamada\n(Porta Fechada)"];
+
+        // Transições DECIDIR
+        E_DECIDIR -> E_SUBINDO [label="Atual < Destino"];
+        E_DECIDIR -> E_DESCENDO [label="Atual > Destino"];
+        E_DECIDIR -> E_ABRINDO [label="Iguais"];
+
+        // Transições MOVIMENTO
+        E_SUBINDO -> E_EMERGENCIA [label="Porta abriu!"];
+        E_SUBINDO -> E_FREANDO [label="Chegou ou\nCmd menor"];
+        
+        E_DESCENDO -> E_EMERGENCIA [label="Porta abriu!"];
+        E_DESCENDO -> E_FREANDO [label="Chegou ou\nCmd maior"];
+
+        // Transições FREANDO/PARADO
+        E_FREANDO -> E_PARADO [label="Tempo Freio OK"];
+        E_PARADO -> E_ABRINDO [label="Automatico"];
+
+        // Transições PORTA (Contexto Elevador)
+        E_ABRINDO -> E_ABERTA [label="Fim abertura"];
+        E_ABERTA -> E_FECHANDO [label="Tempo esgotado"];
+        E_ABERTA -> E_ABERTA [label="Obstrução\n(Reset Timer)"];
+        
+        E_FECHANDO -> E_IDLE [label="Fim fechar\n(Sem chamada)"];
+        E_FECHANDO -> E_DECIDIR [label="Fim fechar\n(Com chamada)"];
+        E_FECHANDO -> E_ABRINDO [label="Obstrução"];
+        
+        // Saída de Emergência (Reset manual geralmente)
+        E_EMERGENCIA -> E_IDLE [label="Reset", style=dashed];
+    }
+
+    // ---------------------------------------------------------
+    // 2. FSM DO MOTOR (VHDL)
+    // ---------------------------------------------------------
+    subgraph cluster_Motor {
+        label = "2) FSM DO MOTOR";
+        style=filled;
+        color="#e0e0ff"; // Azul claro
+        node [fillcolor="white"];
+
+        // Estados
+        M_PARADO [label="PARADO\n(dir=00, off)", shape=doublecircle];
+        M_SUBINDO [label="SUBINDO\n(dir=01, on)"];
+        M_DESCENDO [label="DESCENDO\n(dir=10, on)"];
+        M_FREANDO [label="FREANDO\n(Freio ativado)"];
+
+        // Transições
+        M_PARADO -> M_SUBINDO [label="Cmd='01' & Porta Fechada"];
+        M_PARADO -> M_DESCENDO [label="Cmd='10' & Porta Fechada"];
+        M_PARADO -> M_PARADO [label="Porta Aberta"];
+
+        M_SUBINDO -> M_FREANDO [label="Porta Abriu ou\nCmd='00' ou\nCmd='10'(Inv)"];
+        M_DESCENDO -> M_FREANDO [label="Porta Abriu ou\nCmd='00' ou\nCmd='01'(Inv)"];
+
+        M_FREANDO -> M_PARADO [label="Timer Freio OK"];
+        M_FREANDO -> M_FREANDO [label="Aguardando Timer"];
+    }
+
+    // ---------------------------------------------------------
+    // 3. FSM DA PORTA
+    // ---------------------------------------------------------
+    subgraph cluster_Porta {
+        label = "3) FSM DA PORTA";
+        style=filled;
+        color="#ffe0e0"; // Vermelho claro
+        node [fillcolor="white"];
+
+        // Estados
+        P_FECHADA [label="PORTA_FECHADA", shape=doublecircle];
+        P_ABRINDO [label="ABRINDO\n(Motor Abre)"];
+        P_ABERTA [label="PORTA_ABERTA"];
+        P_FECHANDO [label="FECHANDO\n(Motor Fecha)"];
+
+        // Transições
+        P_FECHADA -> P_ABRINDO [label="Cmd Abrir"];
+        
+        P_ABRINDO -> P_ABERTA [label="Timer Abrir OK"];
+        
+        P_ABERTA -> P_FECHANDO [label="Timer Aberta OK"];
+        P_ABERTA -> P_ABERTA [label="Obstrução\n(Reinicia)"];
+        
+        P_FECHANDO -> P_FECHADA [label="Timer Fechar OK"];
+        P_FECHANDO -> P_ABRINDO [label="Obstrução"];
+    }
+}
